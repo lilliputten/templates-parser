@@ -1,6 +1,6 @@
 {
   "name": "templates-parser",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "HTML template parser",
   "main": "index.js",
   "scripts": {
