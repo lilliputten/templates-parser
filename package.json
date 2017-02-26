@@ -1,0 +1,46 @@
+{
+  "name": "templates-parser",
+  "version": "0.0.1",
+  "description": "HTML template parser",
+  "main": "index.js",
+  "scripts": {
+    "test": "./node_modules/.bin/mocha --reporter spec"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/lilliputten/templates-parser.git"
+  },
+  "keywords": [
+    "templates",
+    "parser",
+    "html"
+  ],
+  "author": "Lilliputten <igor@lilliputten.ru> (http://lilliputten.ru)",
+  "license": "MIT",
+  "licenses": [
+    {
+      "type": "MIT",
+      "url": "https://github.com/lilliputten/templates-parser/blob/master/LICENSE-MIT"
+    }
+  ],
+  "bugs": {
+    "url": "https://github.com/lilliputten/templates-parser/issues"
+  },
+  "devDependencies": {
+    "mocha": "~1.16.2",
+    "chai": "~1.8.1"
+  },
+  "scripts": {
+    "test": "node node_modules/mocha/bin/mocha"
+  },
+  "dependencies": {
+    "cheerio": "^0.22.0",
+    "extend": "^3.0.0",
+    "fs-extra": "^2.0.0",
+    "html": "^1.0.0",
+    "js-yaml": "^3.8.1",
+    "lodash.template": "^4.4.0",
+    "path": "^0.12.7",
+    "yargs": "^6.6.0"
+  }
+}

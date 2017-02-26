@@ -1,0 +1,387 @@
+
+# @version 2017.02.05, 20:32
+
+# {{{ Основные параметры
+
+# Исходный путь, в котором лежат страницы для обработки
+srcPath: 'maket/pages/'
+
+# Конечный путь, -- туда складываем обработанные шаблоны и блоки
+destPath: 'maket/parsed/'
+
+# Расширение для исходных страниц; удаляется из идентификатора страницы, если задано
+srcExt: '.html'
+# Расширения для сохраняемых файлов
+destExt: '.template'
+
+# Сохранять все извелённые блоки
+saveAllBlocks: true
+
+# Папка (внутри `destPath`) для сохранения блоков
+defaultBlocksFolder: 'parsed_blocks/'
+
+# Преобразовывать html (js-beautify|html)
+beautifyHtml: true
+
+# }}}
+
+cheerioOptions: # {{{ Параметры парсинга html (cheerio)
+    # normalizeWhitespace: true
+    xmlMode: true
+    decodeEntities: false
+# }}}
+
+beautifyOptions: # {{{ Параметры преобразования html (js-beautify|html)
+    indent_handlebars: true
+    indent_inner_html: true
+    preserve_newlines: false
+    max_preserve_newlines: 1
+    brace_style: 'expand'
+    indent_char: ' '
+    indent_size: 4
+    wrap_line_length: 0
+    end_with_newline: true
+
+    max_char: 0
+    unformatted:
+        # - a
+        - sub
+        - sup
+        - b
+        - i
+        - u
+
+# }}}
+
+defaultMakeBlocksRules: &defaultMakeBlocksRules # {{{ Правила обработки блоков по умолчанию
+    # -
+    #     id: test
+    #     manipulate:
+    #         prepend: "parse: <!-- block: <%= blockId %> -->"
+# }}}
+defaultBlockRules: &defaultBlockRules # {{{ Правила обработки блоков по умолчанию
+    # -
+    #     id: test
+    #     manipulate:
+    #         prepend: "parse: <!-- block: <%= blockId %> -->"
+# }}}
+
+parseBlocks: # {{{ Блоки (если не указано `saveAllBlocks`, то надо указывать индивидуально)
+    header:
+        # file: 'blocks/header'
+        makeRules:
+            - *defaultMakeBlocksRules
+            # -
+            #     id: navbar_org__block_tagline
+            #     selector: '.navbar_org__block_tagline'
+            #     block: true
+            # -
+            #     id: test
+            #     manipulate:
+            #         prepend: "parse: <!-- block: <%= blockId %> -->"
+    jumbotron_content:
+        makeRules:
+            - *defaultMakeBlocksRules
+            -
+                id: removeExtraIndicators
+                # selector: '.carousel-indicators > li:not(:first-child)'
+                selector: '.carousel-indicators > li:not(.active)'
+                manipulate:
+                    replaceWith: ""
+            -
+                id: indicatorTemplate
+                selector: '.carousel-indicators > li'
+                manipulate:
+                    # attr:
+                    #     - title
+                    #     - "title"
+                    # -
+                    #     cmd: attr
+                    #     params:
+                    #         - class
+                    #         - 'active'
+                    # -
+                    #     cmd: replaceWith
+                    #     params: "parse:<%= node.toString().replace(/\\b(active)\\b/, '{% if k==0 %}$1{% endif %}') %>"
+                    -
+                        name: data-slide-to attr
+                        cmd: attr
+                        params:
+                            - data-slide-to
+                            - "{{ k }}"
+                    -
+                        name: active class
+                        cmd: attr
+                        params:
+                            - class
+                            - "parse:<%= node.attr('class').replace(/(\\s*\\bactive\\b)/, '{% if k==0 %}$1{% endif %}') %>"
+            -
+                name: removeExtraItems
+                # selector: '.carousel-inner > .item:not(:first-child)'
+                selector: '.carousel-inner > .item:not(.active)'
+                manipulate:
+                    replaceWith: ""
+            -
+                name: itemTemplate
+                selector: '.carousel-inner > .item'
+                manipulate:
+                    -
+                        name: loop begin
+                        cmd: prepend
+                        params: "parse:<%=IDTAG%>{% for k,item in items %}"
+                    -
+                        name: loop end
+                        cmd: append
+                        params: "parse:{% endfor %}<%=IDTAG%>"
+                    -
+                        name: active class
+                        cmd: attr
+                        params:
+                            - class
+                            - "parse:<%= node.attr('class').replace(/(\\s*\\bactive\\b)/, '{% if k==0 %}$1{% endif %}') %>"
+                    -
+                        name: image url
+                        cmd: attr
+                        params:
+                            - style
+                            - "parse:<%= node.attr('style').replace(/\\burl\\((['\"])(.*)\\1\\)/, 'url($1{{ item.file }}$1)') %>"
+            -
+                id: itemContent
+                selector: '.carousel-inner .carousel-caption'
+                manipulate:
+                    -
+                        name: item content
+                        cmd: html
+                        params:
+                            - "parse:<!-- <%=ID%> begin -->{{ item.text|raw }}<!-- <%=ID%> end -->"
+    # main_content:
+    #     file: 'blocks/main_content'
+    # main_content_section_id_advantages:
+    #     file: 'blocks/main_content_section_id_advantages'
+# }}}
+
+defaultPageRules: &defaultPageRules [] # {{{ Правила обработки страниц по умолчанию
+# }}}
+
+defaultPageReplaces: &defaultPageReplaces # {{{ Замены для страниц по умолчанию
+    -
+        id: relativeUrls
+        pattern: ((?:url\s*[:=]\s*|url\(|src=|href=)["'])(?:(?:\.\./)+)([^"']*)(["'])
+        options: gi
+        result: '$1/$2$3'
+# }}}
+
+parsePages: # {{{ Обработка страниц
+    Test: # {{{
+        save: false
+    # }}}
+    # main: # {{{
+    #     save: false
+    #     rules:
+    #         - *defaultPageRules
+    #         -
+    #             id: header
+    #             selector: '.layout > .header'
+    #             blocks:
+    #                 header:
+    #                     # match:
+    #                     #     pageId: main
+    #                     # extract:
+    #                     #     cmd: toString
+    #                     #     # cmd: attr
+    #                     #     # params: class
+    #         -
+    #             id: footer
+    #             selector: '.layout > .footer'
+    #             blocks:
+    #                 footer:
+    #                     # match:
+    #                     #     pageId: main
+    #                     # extract:
+    #                     #     cmd: toString
+    #                     #     # cmd: attr
+    #                     #     # params: class
+    #                     #
+    # # }}}
+# }}}
+
+defaultTemplateRules: &defaultTemplateRules # {{{ Правила обработки шаблонов по умолчанию
+    -
+        id: layout_header
+        selector: '.layout > .header'
+        manipulate:
+            replaceWith: "{# replaced header #}{{ include('layout_footer')|raw }}"
+    -
+        id: page_keywords
+        selector: 'meta[name="keywords"]'
+        manipulate:
+            attr:
+                - content
+                - "{# replaced page_keywords #}{{ p.page_keywords }}"
+    -
+        id: page_description
+        selector: 'meta[name="description"]'
+        manipulate:
+            attr:
+                - content
+                - "{# replaced page_description #}{{ p.page_description }}"
+    -
+        id: title
+        selector: 'head > title'
+        manipulate:
+            html: "{# replaced title #}{{ p.page_title }}"
+    -
+        id: layout_footer
+        selector: '.layout > .footer' #footer.footer'
+        manipulate:
+            html: "{# replaced footer #}{{ include('layout_footer')|raw }}"
+    -
+        id: scripts_plus
+        selector: 'body'
+        manipulate:
+            append: "{# appended scripts_plus #}{{ include('server_blocks/scripts_plus.twig')|raw }}"
+# }}}
+
+parseTemplates: # {{{ Создание шаблонов из загруженных страниц
+    # main: # {{{
+    #     pageId: 'main'
+    #     rules:
+    #         - *defaultTemplateRules
+    #         -
+    #             id: jumbotron_content
+    #             selector: '.jumbotron'
+    #             block: true
+    #             manipulate:
+    #                 html: "{# replaced jumbotron_content #}{{ slides|raw }}"
+    #         -
+    #             id: main_page_content_section_id_advantages
+    #             selector: '.page_content .section_id_advantages'
+    #             block: true
+    #             manipulate:
+    #                 replaceWith: "<!-- replaced main_page_content_section_id_advantages -->
+    #                     {{ include('main_page_content_section_id_advantages.twig')|raw }}"
+    #         -
+    #             id: main_page_content_section_id_stages
+    #             selector: '.page_content .section_id_stages'
+    #             block: true
+    #             manipulate:
+    #                 replaceWith: "<!-- replaced main_page_content_section_id_stages -->
+    #                     {{ include('main_page_content_section_id_stages.twig')|raw }}"
+    #         -
+    #             id: main_page_content_section_id_clients
+    #             selector: '.page_content .section_id_clients'
+    #             block: true
+    #             manipulate:
+    #                 replaceWith: "<!-- replaced main_page_content_section_id_clients -->
+    #                     {{ include('main_page_content_section_id_clients.twig')|raw }}"
+    #         -
+    #             id: main_page_content_section_id_feedback
+    #             selector: '.page_content .section_id_feedback'
+    #             block: true
+    #             manipulate:
+    #                 replaceWith: "<!-- replaced main_page_content_section_id_feedback -->
+    #                     {{ include('main_page_content_section_id_feedback.twig')|raw }}"
+    #         -
+    #             id: main_page_content_section_id_cases
+    #             selector: '.page_content .section_id_cases'
+    #             block: true
+    #             manipulate:
+    #                 replaceWith: "<!-- replaced main_page_content_section_id_cases -->
+    #                     {{ include('main_page_content_section_id_cases.twig')|raw }}"
+    #         -
+    #             id: main_page_content_section_id_newswide
+    #             selector: '.page_content .section_id_newswide'
+    #             block: true
+    #             manipulate:
+    #                 replaceWith: "<!-- replaced main_page_content_section_id_newswide -->
+    #                     {{ include('main_page_content_section_id_newswide.twig')|raw }}"
+    #         -
+    #             id: main_page_content_section_id_orderPromote
+    #             selector: '.page_content .section_id_orderPromote'
+    #             block: true
+    #             manipulate:
+    #                 replaceWith: "<!-- replaced main_page_content_section_id_orderPromote -->
+    #                     {{ include('main_page_content_section_id_orderPromote.twig')|raw }}"
+    #         -
+    #             id: main_page_content_section_id_columns_sample1
+    #             selector: '.page_content .section_id_columns_sample1'
+    #             block: true
+    #             manipulate:
+    #                 replaceWith: "<!-- replaced main_page_content_section_id_columns_sample1 -->
+    #                     {{ include('main_page_content_section_id_columns_sample1.twig')|raw }}"
+    #         -
+    #             id: main_page_content_section_id_columns_sample2
+    #             selector: '.page_content .section_id_columns_sample2'
+    #             block: true
+    #             manipulate:
+    #                 replaceWith: "<!-- replaced main_page_content_section_id_columns_sample2 -->
+    #                     {{ include('main_page_content_section_id_columns_sample2.twig')|raw }}"
+    #         -
+    #             id: main_page_content_section_id_sample
+    #             selector: '.page_content .section_id_sample'
+    #             block: true
+    #             manipulate:
+    #                 replaceWith: "<!-- replaced main_page_content_section_id_sample -->
+    #                     {{ include('main_page_content_section_id_sample.twig')|raw }}"
+    #         -
+    #             id: page_content
+    #             selector: '.page_content'
+    #             blocks:
+    #                 main_page_content: html
+    #             manipulate:
+    #                 html: "{# replaced page_content #}{% block body %}{% endblock %}"
+    # # }}}
+    # default: # {{{
+    #     pageId: 'default'
+    #     rules:
+    #         - *defaultTemplateRules
+    #         -
+    #             id: breadcrumbs__home_a_title
+    #             selector: '.breadcrumbs__home > a'
+    #             manipulate:
+    #                 attr:
+    #                     - title
+    #                     - "{# replaced breadcrumbs__home_a_title #}{{ u.t('Рекламное интернет агентство «МАСТЕР СТАР»') }}"
+    #         -
+    #             id: breadcrumbs_append
+    #             selector: '.breadcrumbs'
+    #             manipulate:
+    #                 append: "{# replaced breadcrumbs_append #}{{ include('server_blocks/breadcrumbs_append.twig')|raw }}
+    #                         {# ORIGINAL: {% if p.module and p.module.name == 'Новости' %}
+    #                             {{ site.w(['verhnee-menju', 'menju-v-podvale-sajta'], p.url, true)|raw }}
+    #                         {% else %}
+    #                             {{ site.w(['verhnee-menju', 'menju-v-podvale-sajta'], p.url)|raw }}
+    #                         {% endif %} #}"
+    #         -
+    #             id: page_header__date
+    #             selector: '.page_header__date'
+    #             manipulate:
+    #                 text: "parse:{# replaced page_header__date #}{% if p.date %}<%= node.toString() %>{% endif %}"
+    #         # -
+    #         #     id: page_header
+    #         #     selector: '.page_header'
+    #         #     manipulate:
+    #         #         text: "{# replaced page_header #}{{ p.name|raw }}"
+    #         -
+    #             id: content_placeholder
+    #             selector: '#content_placeholder'
+    #             manipulate:
+    #                 replaceWith: "{# replaced content_placeholder #}{{ p.data|raw }}
+    #                         {% if content is defined %}
+    #                             {{ content|raw }}
+    #                         {% endif %}"
+    #         -
+    #             id: content__column
+    #             selector: '.content__column'
+    #             blocks:
+    #                 content__column: toString
+    #             manipulate:
+    #                 replaceWith: "{# replaced content__column #}{{ include(template_from_string(u.b('levyj-blok-na-obychnyh-stranicah')|raw))|raw }}"
+    # # }}}
+    Test: # {{{
+        # pageId: 'Test'
+        rules:
+            - *defaultTemplateRules
+    # }}}
+# }}}
+
