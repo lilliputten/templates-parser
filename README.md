@@ -1,15 +1,17 @@
-templates-parser
-================
+# templates-parser [![Build Status](https://travis-ci.org/lilliputten/templates-parser.svg?branch=v2)](https://travis-ci.org/lilliputten/templates-parser) [![GitHub Release](https://img.shields.io/github/release/lilliputten/templates-parser.svg)](https://github.com/lilliputten/templates-parser/releases)
+
 
 Модуль для разбора готовых html страниц на блоки для вёрстки (напр., для twig|django шаблониазторов).
 
-## Инсталляция
+Инсталляция
+-----------
 
 ```shell
   npm install templates-parser --save
 ```
 
-## Использование
+Использование
+-------------
 
 ```js
     var templatesParser = require('templates-parser');
@@ -19,13 +21,15 @@ templates-parser
     });
 ```
 
-## Тестирование
+Тестирование
+------------
 
 ```shell
    npm test
 ```
 
-## История изменений
+История изменений
+-----------------
 
 2017.02.26, 03:38 -- Добавлены пробные тесты
 
