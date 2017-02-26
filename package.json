@@ -31,7 +31,7 @@
     "chai": "~1.8.1"
   },
   "scripts": {
-    "test": "node node_modules/mocha/bin/mocha"
+    "test": "node node_modules/mocha/bin/mocha --reporter spec"
   },
   "dependencies": {
     "cheerio": "^0.22.0",

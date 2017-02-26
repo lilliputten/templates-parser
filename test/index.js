@@ -13,14 +13,14 @@ TemplatesParser.init({
     debugLevel: 5,
 });
 
-/*{{{ Тестовый метод */describe('#testMethod', function() {
+/*{{{ Тестовый метод */describe('testMethod', function() {
 
     it('returns "test ok"', function() {
         TemplatesParser.testMethod().should.equal('test ok');
     });
 
 });/*}}}*/
-/*{{{ Функция экранирования строк */describe('#_strQuote', function() {
+/*{{{ Функция экранирования строк */describe('_strQuote', function() {
 
     it('simple quote', function() {
         TemplatesParser._strQuote('text').should.equal('"text"');
