@@ -1,6 +1,6 @@
 [![GitHub Release](https://img.shields.io/github/release/lilliputten/templates-parser.svg)](https://github.com/lilliputten/templates-parser/releases)
 [![Build Status](https://travis-ci.org/lilliputten/templates-parser.png?branch=master)](https://travis-ci.org/lilliputten/templates-parser)
-[![NPM version](https://badge.fury.io/js/templates-parser.png)](http://badge.fury.io/js/templates-parser)
+[![npm version](https://badge.fury.io/js/templates-parser.svg)](https://badge.fury.io/js/templates-parser)
 
 # templates-parser
 
