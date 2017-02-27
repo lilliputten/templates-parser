@@ -635,6 +635,22 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
     },/*}}}*/
 
+    /** _repairDataBem ** {{{
+     * @param {string} data - Код HTML
+     * Исправляем испорченные cheerio/htmlparser2 атрибуты вида `data-bem="{" page":{"mode":"inject"}}"=""`.
+     * ДЛя примведённого примера получаем `data-bem='{"page":{"mode":"inject"}}'`.
+     */
+    _repairDataBem : function (data) {
+
+        data = data.replace(/\b(data-bem=)"([^<>]*)"=""/g, function (match, openAttr, json) {
+            json = json.replace(/(\s+"|"\s+)/g, '"');
+            return openAttr + "'" + json + "'";
+        });
+
+        return data;
+
+    },/*}}}*/
+
     // Интерфейс...
 
     /** testMethod ** {{{ Dummy test
@@ -761,10 +777,16 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             this._parse(cheerHtml, rules, options);
             this._unlevel();
 
+            // Получаем html
             var html = cheerHtml.html();
+
+            // Если задана опция, причёсываем html
             if ( this.config.beautifyHtml ) {
                 html = styleHtml(html, this.config.beautifyOptions);
             }
+
+            // Восстанавливаем значения атрибутов data-bem, испорченных cheerio
+            html = this._repairDataBem(html);
 
             this._info( 'Сохраняем шаблон', this._strQuote(id), '->', this._strQuote(destFilePath) );
             this._level();
@@ -1007,6 +1029,8 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             dirPath = path.posix.dirname(filePath);
 
         fs.mkdirsSync(dirPath);
+
+        // Восстанавливаем...
 
         fs.outputFileSync(filePath, data, 'utf8');
 
