@@ -21,7 +21,7 @@
 Использование
 -------------
 
-```js
+```javascript
     var templatesParser = require('templates-parser');
     templatesParser.run({
         configFile: 'parse_config.yaml',
@@ -48,7 +48,7 @@ TODO
 
 ### 2017.02.27, 03:45
 
-htmlparser2 (cheerio) ошибочно считыввает атрибуты вида `data-bem='{"page":{"mode":"inject"}}'`. Они превращаются в нечто похожее на `data-bem="{" page":{"mode":"inject"}}"=""`.
+htmlparser2 (cheerio) ошибочно считывает атрибуты вида `data-bem='{"page":{"mode":"inject"}}'`. Они превращаются в нечто похожее на `data-bem="{" page":{"mode":"inject"}}"=""`.
 
 Как временное решение добавлена ф-ция `_repairDataBem`, возвращающая атрибут в исходный вид (через RegEx).
 

@@ -3,9 +3,6 @@
   "version": "0.0.2",
   "description": "HTML template parser",
   "main": "index.js",
-  "scripts": {
-    "test": "./node_modules/.bin/mocha --reporter spec"
-  },
   "repository": {
     "type": "git",
     "url": "git://github.com/lilliputten/templates-parser.git"
@@ -30,9 +27,6 @@
     "mocha": "~1.16.2",
     "chai": "~1.8.1"
   },
-  "scripts": {
-    "test": "node node_modules/mocha/bin/mocha --reporter spec"
-  },
   "dependencies": {
     "cheerio": "^0.22.0",
     "extend": "^3.0.0",
@@ -42,5 +36,8 @@
     "lodash.template": "^4.4.0",
     "path": "^0.12.7",
     "yargs": "^6.6.0"
+  },
+  "scripts": {
+    "test": "node node_modules/mocha/bin/mocha --reporter spec"
   }
 }

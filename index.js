@@ -1049,7 +1049,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
         return '';
 
     },/*}}}*/
-    /** loadYaml ** {{{ Загружаем конфигурацию
+    /** loadYaml ** {{{ Загружаем yaml файл
      * @param {string} fileName - Имя файла
      */
     loadYaml : function (fileName) {
