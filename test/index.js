@@ -55,7 +55,8 @@ TemplatesParser.init({
 /*{{{ Функция восстановления аттрибутов data-bem */describe('_repairDataBem', function() {
 
     it('repair', function() {
-        TemplatesParser._repairDataBem('data-bem="{" page":{"mode":"inject"}}"=""').should.equal('data-bem=\'{"page":{"mode":"inject"}}\'');
+        // TemplatesParser._repairDataBem('data-bem="{" page":{"mode":"inject"}}"=""').should.equal('data-bem=\'{"page":{"mode":"inject"}}\'');
+        TemplatesParser._repairDataBem('data-bem="{&quot;page&quot;:{&quot;mode&quot;:&quot;inject&quot;}}"').should.equal('data-bem=\'{"page":{"mode":"inject"}}\'');
     });
 
 });/*}}}*/

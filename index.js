@@ -146,9 +146,9 @@ var TemplatesParser = /** @lends TemplatesParser */ {
         console && console.info.apply(console, args);
 
     },/*}}}*/
-    /** _info ** {{{ Вывод отладочной/статусной информации (с проверкой debugLevel)
+    /** info ** {{{ Вывод отладочной/статусной информации (с проверкой debugLevel)
      */
-    _info : function () {
+    info : function () {
 
         if ( !this.config.debugLevel || this._infoLevel < this.config.debugLevel ) {
 
@@ -267,7 +267,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
         else if ( typeof param === 'string' && ( res = param.match(/^(?:(parse|file):)(.*)$/) ) !== null ) {
             var cmd = res[1],
                 subParam = res[2];
-            // this._info( 'Парсим', cmd, subParam );
+            // this.info( 'Парсим', cmd, subParam );
             // Если `file`, то загружаем файл
             cmd === 'file' && ( subParam = this.loadFile(subParam) );
             // Парсим lodash
@@ -290,10 +290,19 @@ var TemplatesParser = /** @lends TemplatesParser */ {
      */
     _applyManipulates : function (cheerNode, manipulate, options) {
 
-        this._info( 'Список манипуляций: (', Object.keys(manipulate).join(', '), ')' );
+        if ( !manipulate ) { return; }
+
+        this.info( 'Список манипуляций: (', Object.keys(manipulate).join(', '), ')' );
 
         this._level();
 
+        // Если нужен только первый элемент...
+        if ( options.rule.onlyFirst && cheerNode.length > 1 ) {
+            // Удаляем все элементы, кроме первого...
+            for ( var i=cheerNode.length-1; i>=1; i-- ) {
+                cheerNode.remove(cheerNode[i]);
+            }
+        }
         var lastResult = '';
 
         for ( var cmd in manipulate ) {
@@ -312,7 +321,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
                 continue;
             }
 
-            this._info( 'Манипуляция (', cmd, ':', this._strQuote(params), ')' );
+            this.info( 'Манипуляция (', cmd, ':', this._strQuote(params), ')' );
 
             // Подготавливаем комплексные параметры
             var id = [ cmd, ( m.name || '' ) ].join(' ');
@@ -404,15 +413,15 @@ var TemplatesParser = /** @lends TemplatesParser */ {
     _checkMatches : function (obj, values) {
 
         if ( obj.match && !this._matchAllOrAny(true, obj.match, values) ) {
-            this._info( 'Не совпадает условие (match):', obj.match );
+            this.info( 'Не совпадает условие (match):', obj.match );
             return false;
         }
         if ( obj.matchAll && !this._matchAllOrAny(true, obj.matchAll, values) ) {
-            this._info( 'Не совпадает условие (matchAll):', obj.matchAll );
+            this.info( 'Не совпадает условие (matchAll):', obj.matchAll );
             return false;
         }
         if ( obj.matchAny && !this._matchAllOrAny(false, obj.matchAny, values) ) {
-            this._info( 'Не совпадает условие (matchAny):', obj.matchAny );
+            this.info( 'Не совпадает условие (matchAny):', obj.matchAny );
             return false;
         }
 
@@ -433,10 +442,16 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
         this.blocks || ( this.blocks = {} );
 
+        var collectMark = this.config.blockCollectMark || '--collect--';
+
         // Если `true`, то создаём блок с идентификтором правила
-        if ( blocks === true ) {
-            if ( options && options.rule && options.rule.id ) {
-                blocks = options.rule.id;
+        if ( blocks === true || blocks === collectMark ) {
+            var blockId = options && ( ( options.rule && options.rule.id ) || options.id );
+            if ( blockId ) {
+                var newBlock = { /* extract : 'toString' */ };
+                ( blocks === collectMark ) && ( newBlock.collect = true );
+                blocks = {};
+                blocks[blockId] = newBlock;
             }
         }
 
@@ -446,23 +461,26 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
         // Блок по умолчанию: извлечь весь контент (`toString`)
         ( typeof blocks === 'string' ) && ( blocks = [ blocks ] );
+        // Если список, то то считаем, что это список идентификаторов блоков для создания (создаём несколько одинаковых)
         if ( Array.isArray(blocks) ) {
             var list = blocks;
             blocks = {};
             for ( var i in list ) {
                 var newId = list[i];
-                blocks[newId] = { extract : 'toString' };
+                blocks[newId] = { /* extract : 'toString' */ };
             }
         }
 
-        this._info( 'Блок (', Object.keys(blocks).join(', '), ')' );
+        this.info( 'Блок (', Object.keys(blocks).join(', '), ')' );
 
         this._level();
 
+        // Проходим по всем блокам к созданию...
         for ( var id in blocks ) {
 
             var block = blocks[id] || {},
                 ctx = this.config.parseBlocks[id] || {},
+                description = block.description || ( options.rule && ( options.rule.block && options.rule.block.description ) || options.rule.description ),
                 extract = ( ( typeof block === 'string' ) ? block : block.extract ) || {},
                 cmd = ( ( typeof extract === 'string' ) ? extract : extract.cmd ) || 'toString',
                 params = extract.params || [],
@@ -474,12 +492,12 @@ var TemplatesParser = /** @lends TemplatesParser */ {
                 continue;
             }
 
-            if ( typeof cheerNode[cmd] !== 'function' ) {
+            if ( typeof cheerNode === 'object' && typeof cheerNode[cmd] !== 'function' ) {
                 this._infoRaw( '(!) Неизвестная команда cheerio:', this._strQuote(cmd) );
                 continue;
             }
 
-            this._info( 'Извлекаем блок', this._strQuote(id), ': (', cmd, this._strQuote(params), ')' );
+            this.info( 'Извлекаем блок', this._strQuote(id), block, /*, ': (', cmd, this._strQuote(block), ')',*/ this._strQuote(cheerNode.length,'[') );
 
             // Подготавливаем комплексные параметры
             params = this._prepareParams(params, extend({}, options, {
@@ -489,8 +507,16 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             // Убеждаемся, что массив -- для `apply`
             Array.isArray(params) || ( params = [ params ] );
 
+            var content = cheerNode;
+            if ( typeof cheerNode === 'object' && cheerNode.length > 1 && !block.collect ) {
+                content = cheerNode[0];
+                content.options = extend({}, content.options, this.config.cheerioOptions);
+            }
+
             // Применяем метод, извлекаем контент
-            var content = cheerNode[cmd].apply(cheerNode, params) || '';
+            if ( typeof content !== 'string' ) {
+                content = cheerNode[cmd].apply(content, params) || '' ;
+            }
 
             if ( rules ) {
                 content = this.parseContent(content, rules, extend({}, options, {
@@ -501,8 +527,14 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
             this.blocks[id] || ( this.blocks[id] = {} );
             this.blocks[id].content = content;
+            this.blocks[id].id = id;
 
-            this._info( 'Блок', this._strQuote(id), this._strQuote(content.length, '['), ':', this._strQuote(content) );
+            // Описание?
+            if ( description ) {
+                this.blocks[id].description = description;
+            }
+
+            this.info( 'Блок', this._strQuote(id), this._strQuote(content.length, '['), ':', this._strQuote(content) );
         }
 
         this._unlevel();
@@ -517,7 +549,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
     _applyReplaces : function (html, replaces, options) {
 
         if ( Array.isArray(replaces) ) {
-            this._info( 'Набор правил замены', this._strQuote(replaces.length, '[') );
+            this.info( 'Набор правил замены', this._strQuote(replaces.length, '[') );
             this._level();
             for ( var i=0; i<replaces.length; i++ ) {
                 // ...то обрабатываем по одному
@@ -529,7 +561,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
             var r = replaces;
 
-            this._info( 'Замена', ( r.id || this._strQuote(r.pattern) ) );
+            this.info( 'Замена', ( r.id || this._strQuote(r.pattern) ) );
 
             var
                 reg = new RegExp(r.pattern, r.options || 'g'),
@@ -538,7 +570,17 @@ var TemplatesParser = /** @lends TemplatesParser */ {
                 }))
             ;
 
-            // this._info( 'Замена', this._strQuote(replaces[i].pattern) );
+            // this.info( 'Замена', this._strQuote(replaces[i].pattern) );
+
+            // Если задан блок, то выдергиваем "найденый" контент в блоки
+            var blocks = r.block || r.blocks;
+            if ( blocks ) {
+                var match = html.match(reg);
+                this._makeBlocks(( match && match[0] ) || '', blocks, extend({}, options, {
+                    rule : r,
+                    blockId : r.id,
+                }));
+            }
 
             html = html.replace(reg, result);
 
@@ -559,7 +601,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
         // Ищем элемент по селектору...
         if ( rule.selector ) {
-            this._info( 'Селектор', this._strQuote(rule.selector) );
+            this.info( 'Селектор', this._strQuote(rule.selector) );
             cheerNode = cheerHtml(rule.selector);
         }
         // Или выбираем ключевой элемент
@@ -571,9 +613,6 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             this._infoRaw( '(!) Не найден элемент для правила', this._strQuote(rule.id || rule.selector), options );
             return false;
         }
-        // else {
-        //     this._infoRaw( 'Найден элемент для правила', this._strQuote(cheerNode.length, '('), cheerNode.html() );
-        // }
 
         options = extend({}, options, {
             cheerHtml : cheerHtml,
@@ -605,7 +644,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
      */
     _applyRule : function (cheerHtml, rule, options) {
 
-        this._info( 'Применяем правило', this._strQuote(rule.id || rule.selector) );//, ':', this._strQuote(rule.selector) );
+        this.info( 'Применяем правило', this._strQuote(rule.id || rule.selector) );//, ':', this._strQuote(rule.selector) );
 
         this._level();
 
@@ -631,7 +670,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
         }
         // Если набор правил...
         else if ( Array.isArray(rules) && rules.length ) {
-            this._info( 'Набор правил парсера', this._strQuote(rules.length, '['), ':', rules.map(function(rule){
+            this.info( 'Набор правил парсера', this._strQuote(rules.length, '['), ':', rules.map(function(rule){
                 return Array.isArray(rule) ? that._strQuote(rule.length, '[') : rule.id;
             }).join(', ') );
             this._level();
@@ -650,30 +689,43 @@ var TemplatesParser = /** @lends TemplatesParser */ {
     },/*}}}*/
 
     /** _repairDataBem ** {{{
-     * @param {string} data - Код HTML
+     * @param {string} content - Код HTML
      * Исправляем испорченные cheerio/htmlparser2 атрибуты вида:
      * ```html
-     *  <body class="page i-bem" data-bem="{" page ":{"mode ":"inject "}}"="">
-     *  <body class="page i-bem" data-bem="{" page ":{"mode ":"inject "}}">
+     *  <body ... data-bem="{...&quot;..."" ... >
+     *  <!--body ... data-bem="{" page ":{"mode ":"inject "}}"="" ... -->
+     *  <!--body ... data-bem="{" page ":{"mode ":"inject "}}" ... -->
      * ```
-     * ДЛя примведённого примера получаем `data-bem='{"page":{"mode":"inject"}}'`.
+     * Для приведённого примера получаем `content-bem='{"page":{"mode":"inject"}}'`.
+     *
+     * См. код в `loadPages` -- при загрузке страницы преобразуем `data-bem='..."...'` в data-bem="...&quot;...",
+     * при сохранении конвертим обратно при помощи `_repairDataBem`.
+     *
      */
-    _repairDataBem : function (data) {
+    _repairDataBem : function (content) {
 
-        data = data.replace(/\b(data-bem=)"([^<>]*}})("=""|")/g, function (match, openAttr, json, tail) {
-            json = json.replace(/(\s+"|"\s+)/g, '"');
-            return openAttr + "'" + json + "'";
-        });
+        content = content
+            .replace(/\b(data-bem=)"([^"]*)"/g, function (match, openAttr, json) {
+                return openAttr + "'" + json.replace(/\&quot;/g, '"') + "'";
+            })
+        ;
 
-        return data;
+        // content = content
+        //     .replace(/\b(data-bem=)"([^<>]*}})("=""|")\s*/g, function (match, openAttr, json, tail) {
+        //         json = json.replace(/(\s+"|"\s+)/g, '"');
+        //         return openAttr + "'" + json + "'-- ";
+        //     })
+        // ;
+
+        return content;
 
     },/*}}}*/
 
     /** _removeComments ** {{{ */
     _removeComments : function (content) {
 
-        content = content.replace(/^\s*((<!--[^>]*-->|\{#[^\}]*#\})\s*)+\n/gm, '');
-        content = content.replace(/(<!--[^>]*-->|\{#[^\}]*#\})/gm, '');
+        content = content.replace(/^\s*((<\/?empty>|<!--[^>]*-->|\{#[^\}]*#\})\s*)+\n/gmi, '');
+        content = content.replace(/(<\/?empty\/?>|<!--[^>]*-->|\{#[^\}]*#\})/gmi, '');
 
         return content;
 
@@ -698,7 +750,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             undef
         ;
 
-        this._info( 'Исходные страницы <-', this._strQuote(this.config.srcPath) );
+        this.info( 'Исходные страницы <-', this._strQuote(this.config.srcPath) );
 
         // Если путь не задан ('./') либо задан и существует...
         if ( !srcPath || ( fs.existsSync(srcPath) && fs.statSync(srcPath).isDirectory() ) ) {
@@ -714,16 +766,21 @@ var TemplatesParser = /** @lends TemplatesParser */ {
                     var
                         id = ( that.config.srcExt && fileName.substr(0,fileName.length-that.config.srcExt.length) ) || fileName,
                         filePath = path.posix.join(that.config.srcPath, fileName),
-                        fileContent = that.loadFile(filePath),
+                        content = that.loadFile(filePath),
                         undef
                     ;
 
-                    that._info( 'Страница', that._strQuote(id), '<-', that._strQuote(filePath) );
+                    // Обрабатываем data-bem
+                    content = content.replace(/\b(data-bem=)'([^']*)'/g, function (match, openAttr, json) {
+                        return openAttr + '"' + json.replace(/"/g, '&quot;') + '"';
+                    });
+
+                    that.info( 'Страница', that._strQuote(id), '<-', that._strQuote(filePath) );
 
                     that.pages[id] = {
                         id : id,
                         fileName : fileName,
-                        srcContent : fileContent,
+                        srcContent : content,
                     };
 
                 })
@@ -744,7 +801,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             pages = this.pages || {}
         ;
 
-        this._info( 'Обрабатываем шаблоны (', Object.keys(parseTemplates).join(', '), ')' );
+        this.info( 'Обрабатываем шаблоны (', Object.keys(parseTemplates).join(', '), ')' );
 
         this._level();
 
@@ -764,7 +821,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
             ;
 
-            this._info( 'Шаблон', this._strQuote(id) );
+            this.info( 'Шаблон', this._strQuote(id) );
 
             if ( !pageId ) {
                 this._infoRaw( '(!) Не задана страница для шаблона', this._strQuote(id, '("') );
@@ -790,7 +847,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
             this._level();
 
-            this._info( 'Парсим шаблон', this._strQuote(id), '<-', this._strQuote(pageId) );
+            this.info( 'Парсим шаблон', this._strQuote(id), '<-', this._strQuote(pageId) );
 
             // Исходный контент шаблона
             var content = pageCtx.content || pageCtx.srcContent || '';
@@ -827,7 +884,24 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             // Восстанавливаем значения атрибутов data-bem, испорченных cheerio
             content = this._repairDataBem(content);
 
-            this._info( 'Сохраняем шаблон', this._strQuote(id), '->', this._strQuote(destFilePath) );
+            // Добавляем комментарий к содержимому файла
+            if ( this.config.fileTag ) {
+                var fileTagCtx = {
+                    ctx : ctx,
+                    config : this.config,
+                    options : options,
+                };
+                var fileTag = this._parseTemplate(this.config.fileTag, fileTagCtx);
+                if ( fileTag ) {
+                    if ( this.config.fileTagWrap ) {
+                        fileTagCtx.fileTag = fileTag;
+                        fileTag = this._parseTemplate(this.config.fileTagWrap, fileTagCtx);
+                    }
+                    content = fileTag + content;
+                }
+            }
+
+            this.info( 'Сохраняем шаблон', this._strQuote(id), '->', this._strQuote(destFilePath) );
             this._level();
             this.writeFile(destFilePath, content);
             this._unlevel();
@@ -849,7 +923,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             pages = this.pages || {}
         ;
 
-        this._info( 'Парсим страницы (', Object.keys(parsePages).join(', '), ')' );
+        this.info( 'Парсим страницы (', Object.keys(parsePages).join(', '), ')' );
 
         this._level();
 
@@ -862,7 +936,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
             ;
 
-            this._info( 'Страница', this._strQuote(id) );
+            this.info( 'Страница', this._strQuote(id) );
 
             if ( !pages[id] ) {
                 this._infoRaw( '(!) Отсутствует страница', this._strQuote(id) );
@@ -913,6 +987,23 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             // Восстанавливаем значения атрибутов data-bem, испорченных cheerio
             content = this._repairDataBem(content);
 
+            // Добавляем комментарий к содержимому файла
+            if ( this.config.fileTag ) {
+                var fileTagCtx = {
+                    ctx : ctx,
+                    config : this.config,
+                    options : options,
+                };
+                var fileTag = this._parseTemplate(this.config.fileTag, fileTagCtx);
+                if ( fileTag ) {
+                    if ( this.config.fileTagWrap ) {
+                        fileTagCtx.fileTag = fileTag;
+                        fileTag = this._parseTemplate(this.config.fileTagWrap, fileTagCtx);
+                    }
+                    content = fileTag + content;
+                }
+            }
+
             // Имя конечного файла
             var srcFileName = id + ( this.config.srcExt || '' );
 
@@ -920,7 +1011,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             var srcFilePath = path.posix.join(this.config.destPagesPath || this.config.srcPath, srcFileName);
 
             if ( ctx.save ) {
-                this._info( 'Сохраняем страницу', this._strQuote(id), '->', this._strQuote(srcFilePath) );
+                this.info( 'Сохраняем страницу', this._strQuote(id), '->', this._strQuote(srcFilePath) );
                 this._level();
                 this.writeFile(srcFilePath, content);
                 this._unlevel();
@@ -948,7 +1039,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             // Получаем cheerio объект шаблона
             var cheerHtml = typeof content === 'string' ? cheerio.load(content, this.config.cheerioOptions) : content;
 
-            this._info( 'Парсим контент', this._strQuote( options && options.parseId ) );
+            this.info( 'Парсим контент', this._strQuote( options && options.parseId ) );
             this._level();
             this._parse(cheerHtml, rules, options);
             this._unlevel();
@@ -972,7 +1063,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             undef
         ;
 
-        this._info( 'Сохраняем блоки (', Object.keys(listBlocks).join(', '), ')' );
+        this.info( 'Сохраняем блоки (', Object.keys(listBlocks).join(', '), ')' );
 
         this._level();
 
@@ -991,7 +1082,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
             ;
 
-            this._info( 'Блок', this._strQuote(id) );
+            this.info( 'Блок', this._strQuote(id), Object.keys(ctx) );
 
             if ( !blocks[id] && !this.config.saveEmptyBlocks ) {
                 this._infoRaw( '(!) Отсутствует блок', this._strQuote(id) );
@@ -1041,8 +1132,26 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             }
             destFileName = path.posix.join(this.config.destPath, destFileName);
 
+            // Добавляем комментарий к содержимому файла
+            if ( this.config.fileTag ) {
+                var fileTagCtx = {
+                    // ctx : ctx,
+                    ctx : blockData,
+                    config : this.config,
+                    options : options,
+                };
+                var fileTag = this._parseTemplate(this.config.fileTag, fileTagCtx);
+                if ( fileTag ) {
+                    if ( this.config.fileTagWrap ) {
+                        fileTagCtx.fileTag = fileTag;
+                        fileTag = this._parseTemplate(this.config.fileTagWrap, fileTagCtx);
+                    }
+                    content = fileTag + content;
+                }
+            }
+
             // if ( ctx.save ) {
-            this._info( 'Сохраняем блок', this._strQuote(id), '->', this._strQuote(destFileName) );
+            this.info( 'Сохраняем блок', this._strQuote(id), '->', this._strQuote(destFileName) );
             this._level();
             this.writeFile(destFileName, content);
             this._unlevel();
@@ -1055,32 +1164,6 @@ var TemplatesParser = /** @lends TemplatesParser */ {
         this._unlevel();
 
     },/*}}}*/
-
-    // /** writePages ** {{{ Сохранить страницы (???)
-    //  */
-    // writePages : function () {
-    //
-    //     var that = this,
-    //         srcPath = this._expandPath(this.config.srcPath),
-    //         undef
-    //     ;
-    //
-    //     typeof this.pages === 'object' && Object.keys(this.pages).map(function(id){
-    //         var page = that.pages[id] || {},
-    //             destFileName = id + ( that.config.destExt || '' ),
-    //             filePath = path.posix.join(that.config.destPath, destFileName),
-    //             fileContent = page.content || page.srcContent,
-    //             undef
-    //         ;
-    //         that.writeFile(filePath, fileContent);
-    //         // gulpFile('aaa', 'bbb', { src: true })
-    //         //     .pipe( gulp.dest('dest') )
-    //         //     .pipe( gulpDebug({ title: 'test ->' }) )
-    //         // ;
-    //
-    //     });
-    //
-    // },/*}}}*/
 
     /** writeFile ** {{{ Сохранить файл
      * @param {string} fileName - Имя файла
@@ -1117,9 +1200,9 @@ var TemplatesParser = /** @lends TemplatesParser */ {
      */
     loadYaml : function (fileName) {
 
-        var fileContent = this.loadFile(fileName);
+        var content = this.loadFile(fileName);
 
-        return yaml.load(fileContent) || {};
+        return yaml.load(content) || {};
 
     },/*}}}*/
     /** loadConfig ** {{{ Загружаем конфигурацию
@@ -1151,7 +1234,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             return false;
         }
 
-        // this._info( 'Инициализация' );
+        // this.info( 'Инициализация' );
 
         this.loadConfig(config);
 
