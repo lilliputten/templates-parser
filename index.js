@@ -1,19 +1,14 @@
-// ex: set commentstring=/*%s*/ :
 /* jshint camelcase: false, unused: false, expr: true */
-
 /**
  *
+ * @module TemplatesParser
  * @overview TemplatesParser
  *
  * @author lilliputten <lilliputten@yandex.ru>
  * @since 2017.02.03, 16:43
- * @version 2017.02.26, 02:01
+ * @version 2017.04.09, 00:48
  *
 */
-
-/*
- * @module TemplatesParser
- */
 
 var
 
@@ -157,6 +152,11 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
         if ( !this.config.debugLevel || this._infoLevel < this.config.debugLevel ) {
 
+            // DEBUG
+            // var a = Array.from(arguments);
+            // a.unshift(this._infoLevel);
+            // a.unshift(this.config.debugLevel);
+
             this._infoRaw.apply(this, arguments);
 
         }
@@ -264,9 +264,10 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             });
         }
         // Если спецпараметр вида `cmd:param`, то...
-        else if ( typeof param === 'string' && ( res = param.match(/^(?:(_parse|file):)(.*)$/) ) !== null ) {
+        else if ( typeof param === 'string' && ( res = param.match(/^(?:(parse|file):)(.*)$/) ) !== null ) {
             var cmd = res[1],
                 subParam = res[2];
+            // this._info( 'Парсим', cmd, subParam );
             // Если `file`, то загружаем файл
             cmd === 'file' && ( subParam = this.loadFile(subParam) );
             // Парсим lodash
@@ -315,14 +316,20 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
             // Подготавливаем комплексные параметры
             var id = [ cmd, ( m.name || '' ) ].join(' ');
+            var blockId = ( this.config.blocksFolder || '' ) + options.rule.id;
             var opt = extend({}, options, {
+                blockId : blockId, // <%= config.blocksFolder + rule.id %>
+                placeBlockTag : '<!-- block:'+blockId+' {{{ -->{{ include(\''+blockId+'\')|raw }}<!-- block:'+blockId+' }}} -->',
+                placeBlockInline : '{# block:'+blockId+' #}{{ include(\''+blockId+'\')|raw }}',
                 node : cheerNode,
                 manipulate : manipulate,
                 m : m,
                 ID : id,
                 IDTAG : '<!-- '+id+' -->',
+                IDTPLTAG : '{# '+id+' #}',
                 cmd : cmd,
                 lastResult : lastResult,
+                config : this.config,
             });
             params = this._prepareParams(params, opt);
             // Убеждаемся, что массив -- для `apply`
@@ -455,11 +462,11 @@ var TemplatesParser = /** @lends TemplatesParser */ {
         for ( var id in blocks ) {
 
             var block = blocks[id] || {},
-                cfg = this.config.parseBlocks[id] || {},
+                ctx = this.config.parseBlocks[id] || {},
                 extract = ( ( typeof block === 'string' ) ? block : block.extract ) || {},
                 cmd = ( ( typeof extract === 'string' ) ? extract : extract.cmd ) || 'toString',
                 params = extract.params || [],
-                rules = cfg.makeRules || this.config.defaultMakeBlocksRules,
+                rules = ctx.makeRules || this.config.defaultMakeBlocksRules,
                 undef
             ;
 
@@ -564,6 +571,9 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             this._infoRaw( '(!) Не найден элемент для правила', this._strQuote(rule.id || rule.selector), options );
             return false;
         }
+        // else {
+        //     this._infoRaw( 'Найден элемент для правила', this._strQuote(cheerNode.length, '('), cheerNode.html() );
+        // }
 
         options = extend({}, options, {
             cheerHtml : cheerHtml,
@@ -615,8 +625,12 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
         var that = this;
 
+        // Если не указаны правила, ничего не делаем
+        if ( !rules ) {
+            return false;
+        }
         // Если набор правил...
-        if ( Array.isArray(rules) && rules.length ) {
+        else if ( Array.isArray(rules) && rules.length ) {
             this._info( 'Набор правил парсера', this._strQuote(rules.length, '['), ':', rules.map(function(rule){
                 return Array.isArray(rule) ? that._strQuote(rule.length, '[') : rule.id;
             }).join(', ') );
@@ -624,7 +638,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             for ( var i=0; i<rules.length; i++ ) {
                 var rule = rules[i];
                 // ...то обрабатываем по одному
-                this._parse(cheerHtml, rule, options);
+                rule && this._parse(cheerHtml, rule, options);
             }
             this._unlevel();
         }
@@ -637,17 +651,31 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
     /** _repairDataBem ** {{{
      * @param {string} data - Код HTML
-     * Исправляем испорченные cheerio/htmlparser2 атрибуты вида `data-bem="{" page":{"mode":"inject"}}"=""`.
+     * Исправляем испорченные cheerio/htmlparser2 атрибуты вида:
+     * ```html
+     *  <body class="page i-bem" data-bem="{" page ":{"mode ":"inject "}}"="">
+     *  <body class="page i-bem" data-bem="{" page ":{"mode ":"inject "}}">
+     * ```
      * ДЛя примведённого примера получаем `data-bem='{"page":{"mode":"inject"}}'`.
      */
     _repairDataBem : function (data) {
 
-        data = data.replace(/\b(data-bem=)"([^<>]*)"=""/g, function (match, openAttr, json) {
+        data = data.replace(/\b(data-bem=)"([^<>]*}})("=""|")/g, function (match, openAttr, json, tail) {
             json = json.replace(/(\s+"|"\s+)/g, '"');
             return openAttr + "'" + json + "'";
         });
 
         return data;
+
+    },/*}}}*/
+
+    /** _removeComments ** {{{ */
+    _removeComments : function (content) {
+
+        content = content.replace(/^\s*((<!--[^>]*-->|\{#[^\}]*#\})\s*)+\n/gm, '');
+        content = content.replace(/(<!--[^>]*-->|\{#[^\}]*#\})/gm, '');
+
+        return content;
 
     },/*}}}*/
 
@@ -757,40 +785,51 @@ var TemplatesParser = /** @lends TemplatesParser */ {
                 destFileName = id + ( this.config.destExt || '' ),
 
                 // Полный путь к конечному файлу
-                destFilePath = path.posix.join(this.config.destPath, destFileName),
-
-                // Исходный контент шаблона
-                content = pageCtx.content || pageCtx.srcContent || '',
-
-                // Получаем cheerio объект шаблона
-                cheerHtml = cheerio.load(content, this.config.cheerioOptions),
-
-                // Правила обработки шаблона
-                rules = ctx.rules || this.config.defaultTemplateRules
-
+                destFilePath = path.posix.join(this.config.destPath, destFileName)
             ;
 
             this._level();
 
             this._info( 'Парсим шаблон', this._strQuote(id), '<-', this._strQuote(pageId) );
+
+            // Исходный контент шаблона
+            var content = pageCtx.content || pageCtx.srcContent || '';
+
+            // Замены...
+            var replaces = ctx.replaces || this.config.defaultTemplateReplaces;
+            if ( replaces ) {
+                content = this._applyReplaces(content, replaces, options);
+            }
+
+            // Получаем cheerio объект шаблона
+            var cheerHtml = cheerio.load(content, this.config.cheerioOptions);
+
+            // Правила обработки шаблона
+            var rules = ctx.rules || this.config.defaultTemplateRules;
+
             this._level();
             this._parse(cheerHtml, rules, options);
             this._unlevel();
 
             // Получаем html
-            var html = cheerHtml.html();
+            content = cheerHtml.html();
 
             // Если задана опция, причёсываем html
             if ( this.config.beautifyHtml ) {
-                html = styleHtml(html, this.config.beautifyOptions);
+                content = styleHtml(content, this.config.beautifyOptions);
+            }
+
+            // Удаляем комментарии...
+            if ( this.config.removeComments ) {
+                content = this._removeComments(content);
             }
 
             // Восстанавливаем значения атрибутов data-bem, испорченных cheerio
-            html = this._repairDataBem(html);
+            content = this._repairDataBem(content);
 
             this._info( 'Сохраняем шаблон', this._strQuote(id), '->', this._strQuote(destFilePath) );
             this._level();
-            this.writeFile(destFilePath, html);
+            this.writeFile(destFilePath, content);
             this._unlevel();
 
             this._unlevel();
@@ -843,34 +882,42 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             this._level();
 
             var replaces = ctx.replaces || this.config.defaultPageReplaces;
-
             if ( replaces ) {
                 content = this._applyReplaces(content, replaces, options);
             }
 
             // Получаем cheerio объект шаблона
             var cheerHtml = cheerio.load(content, this.config.cheerioOptions);
+            // cheerHtml('body').html('xxx');
 
             // Правила обработки шаблона
             var rules = ctx.rules || this.config.defaultPageRules;
-
             if ( rules ) {
-                content = this.parseContent(content, rules, extend({}, options, {
+                this.parseContent(cheerHtml, rules, extend({}, options, {
                     parseId : 'page:'+id,
                     pageId : id,
                 }));
             }
 
             content = pageCtx.content = cheerHtml.html();
+
             if ( this.config.beautifyHtml ) {
                 content = styleHtml(content, this.config.beautifyOptions);
             }
+
+            // Удаляем комментарии...
+            if ( this.config.removeComments ) {
+                content = this._removeComments(content);
+            }
+
+            // Восстанавливаем значения атрибутов data-bem, испорченных cheerio
+            content = this._repairDataBem(content);
 
             // Имя конечного файла
             var srcFileName = id + ( this.config.srcExt || '' );
 
             // Полный путь к конечному файлу
-            var srcFilePath = path.posix.join(this.config.srcPath, srcFileName);
+            var srcFilePath = path.posix.join(this.config.destPagesPath || this.config.srcPath, srcFileName);
 
             if ( ctx.save ) {
                 this._info( 'Сохраняем страницу', this._strQuote(id), '->', this._strQuote(srcFilePath) );
@@ -888,7 +935,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
     },/*}}}*/
 
     /** parseContent ** {{{ Разбираем строку контента (блок, страница, шаблон, ...)
-     * @param {string} content
+     * @param {string|object} content - Контент или cheerioHtml
      * @param {object} [rules]
      * @param {object} [options]
      */
@@ -899,7 +946,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
         if ( rules ) {
 
             // Получаем cheerio объект шаблона
-            var cheerHtml = cheerio.load(content, this.config.cheerioOptions);
+            var cheerHtml = typeof content === 'string' ? cheerio.load(content, this.config.cheerioOptions) : content;
 
             this._info( 'Парсим контент', this._strQuote( options && options.parseId ) );
             this._level();
@@ -916,7 +963,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
     /** parseAndWriteBlocks ** {{{ Сохранить шаблоны
      */
-    parseAndWriteBlocks : function (options) {
+    parseAndWriteBlocks : function (commonOptions) {
 
         var
             parseBlocks = this.config.parseBlocks || {},
@@ -933,8 +980,14 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
             var
 
+                options = extend({}, commonOptions, {
+                    // block : id,
+                    parseId : 'block:'+id,
+                    blockId : id,
+                }),
+
                 // Описание блока
-                cfg = parseBlocks[id] || {}
+                ctx = parseBlocks[id] || {}
 
             ;
 
@@ -951,34 +1004,44 @@ var TemplatesParser = /** @lends TemplatesParser */ {
                 blockData = blocks[id] || {},
 
                 // Исходный контент шаблона
-                content = blockData.content || '',
-
-                // Правила обработки
-                rules = cfg.rules || this.config.defaultBlockRules
+                content = blockData.content || ''
 
             ;
 
             this._level();
 
+            // Замены...
+            var replaces = ctx.replaces || this.config.defaultBlockReplaces;
+            if ( replaces ) {
+                content = this._applyReplaces(content, replaces, options);
+            }
+
+            // Правила обработки
+            var rules = ctx.rules || this.config.defaultBlockRules;
             if ( rules ) {
-                content = this.parseContent(content, rules, extend({}, options, {
-                    parseId : 'block:'+id,
-                    blockId : id,
-                }));
+                content = this.parseContent(content, rules, options);
             }
 
             if ( this.config.beautifyHtml ) {
                 content = styleHtml(content, this.config.beautifyOptions);
             }
 
+            // Удаляем комментарии...
+            if ( this.config.removeComments ) {
+                content = this._removeComments(content);
+            }
+
+            // Восстанавливаем значения атрибутов data-bem, испорченных cheerio
+            content = this._repairDataBem(content);
+
             // Имя конечного файла
-            var destFileName = ( cfg.file || id ) + ( this.config.destExt || '' );
-            if ( this.config.defaultBlocksFolder ) {
-                destFileName = path.posix.join(this.config.defaultBlocksFolder, destFileName);
+            var destFileName = ( ctx.file || id ) + ( this.config.destExt || '' );
+            if ( this.config.blocksFolder ) {
+                destFileName = path.posix.join(this.config.blocksFolder, destFileName);
             }
             destFileName = path.posix.join(this.config.destPath, destFileName);
 
-            // if ( cfg.save ) {
+            // if ( ctx.save ) {
             this._info( 'Сохраняем блок', this._strQuote(id), '->', this._strQuote(destFileName) );
             this._level();
             this.writeFile(destFileName, content);
@@ -1088,7 +1151,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             return false;
         }
 
-        this._info( 'Инициализация' );
+        // this._info( 'Инициализация' );
 
         this.loadConfig(config);
 
