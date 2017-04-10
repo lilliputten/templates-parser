@@ -326,10 +326,11 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             // Подготавливаем комплексные параметры
             var id = [ cmd, ( m.name || '' ) ].join(' ');
             var blockId = ( this.config.blocksFolder || '' ) + options.rule.id;
+            var blockFile = blockId + ( this.config.destExt || '.template' );
             var opt = extend({}, options, {
                 blockId : blockId, // <%= config.blocksFolder + rule.id %>
-                placeBlockTag : '<!-- block:'+blockId+' {{{ -->{{ include(\''+blockId+'\')|raw }}<!-- block:'+blockId+' }}} -->',
-                placeBlockInline : '{# block:'+blockId+' #}{{ include(\''+blockId+'\')|raw }}',
+                placeBlockTag : '<!-- block:'+blockId+' {{{ -->{{ include(\''+blockFile+'\')|raw }}<!-- block:'+blockId+' }}} -->',
+                placeBlockInline : '{# block:'+blockId+' #}{{ include(\''+blockFile+'\')|raw }}',
                 node : cheerNode,
                 manipulate : manipulate,
                 m : m,
@@ -792,6 +793,33 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
     },/*}}}*/
 
+    /** parseContent ** {{{ Разбираем строку контента (блок, страница, шаблон, ...)
+     * @param {string|object} content - Контент или cheerioHtml
+     * @param {object} [rules]
+     * @param {object} [options]
+     */
+    parseContent : function (content, rules, options) {
+
+        content = content || '';
+
+        if ( rules ) {
+
+            // Получаем cheerio объект шаблона
+            var cheerHtml = typeof content === 'string' ? cheerio.load(content, this.config.cheerioOptions) : content;
+
+            this.info( 'Парсим контент', this._strQuote( options && options.parseId ) );
+            this._level();
+            this._parse(cheerHtml, rules, options);
+            this._unlevel();
+
+            content = cheerHtml.html();
+
+        }
+
+        return content;
+
+    },/*}}}*/
+
     /** parseAndWriteTemplates ** {{{ Сохранить шаблоны
      */
     parseAndWriteTemplates : function () {
@@ -1025,51 +1053,38 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
     },/*}}}*/
 
-    /** parseContent ** {{{ Разбираем строку контента (блок, страница, шаблон, ...)
-     * @param {string|object} content - Контент или cheerioHtml
-     * @param {object} [rules]
-     * @param {object} [options]
-     */
-    parseContent : function (content, rules, options) {
-
-        content = content || '';
-
-        if ( rules ) {
-
-            // Получаем cheerio объект шаблона
-            var cheerHtml = typeof content === 'string' ? cheerio.load(content, this.config.cheerioOptions) : content;
-
-            this.info( 'Парсим контент', this._strQuote( options && options.parseId ) );
-            this._level();
-            this._parse(cheerHtml, rules, options);
-            this._unlevel();
-
-            content = cheerHtml.html();
-
-        }
-
-        return content;
-
-    },/*}}}*/
-
     /** parseAndWriteBlocks ** {{{ Сохранить шаблоны
      */
     parseAndWriteBlocks : function (commonOptions) {
 
         var
+            that = this,
             parseBlocks = this.config.parseBlocks || {},
             blocks = this.blocks || {},
-            listBlocks = this.config.saveAllBlocks ? blocks : parseBlocks,
+            listBlocks = [], // this.config.saveAllBlocks ? blocks : parseBlocks,
             undef
         ;
+
+        if ( this.config.saveAllBlocks ) {
+            listBlocks = Object.keys(blocks)
+                .concat( Object.keys(parseBlocks)
+                    .filter(function(id) { return parseBlocks[id].save && !listBlocks[id]; })
+                )
+            ;
+        }
+        else {
+            listBlocks = Object.keys(parsedBlocks);
+        }
 
         this.info( 'Сохраняем блоки (', Object.keys(listBlocks).join(', '), ')' );
 
         this._level();
 
-        for ( var id in listBlocks ) {
+        for ( var i=0; i<listBlocks.length; i++ ) {
 
             var
+
+                id = listBlocks[i],
 
                 options = extend({}, commonOptions, {
                     // block : id,
@@ -1078,16 +1093,16 @@ var TemplatesParser = /** @lends TemplatesParser */ {
                 }),
 
                 // Описание блока
-                ctx = parseBlocks[id] || {}
+                ctx = parseBlocks[id] || blocks[id] || {}
 
             ;
 
             this.info( 'Блок', this._strQuote(id), Object.keys(ctx) );
 
-            if ( !blocks[id] && !this.config.saveEmptyBlocks ) {
-                this._infoRaw( '(!) Отсутствует блок', this._strQuote(id) );
-                continue;
-            }
+            // if ( !blocks[id] && !this.config.saveEmptyBlocks ) {
+            //     this._infoRaw( '(!) Отсутствует блок', this._strQuote(id) );
+            //     continue;
+            // }
 
             var
 
@@ -1113,17 +1128,8 @@ var TemplatesParser = /** @lends TemplatesParser */ {
                 content = this.parseContent(content, rules, options);
             }
 
-            if ( this.config.beautifyHtml ) {
-                content = styleHtml(content, this.config.beautifyOptions);
-            }
-
-            // Удаляем комментарии...
-            if ( this.config.removeComments ) {
-                content = this._removeComments(content);
-            }
-
-            // Восстанавливаем значения атрибутов data-bem, испорченных cheerio
-            content = this._repairDataBem(content);
+            // Обрабатываем содержимое...
+            content = this._prepareContentToWrite(content, blockData, options);
 
             // Имя конечного файла
             var destFileName = ( ctx.file || id ) + ( this.config.destExt || '' );
@@ -1131,24 +1137,6 @@ var TemplatesParser = /** @lends TemplatesParser */ {
                 destFileName = path.posix.join(this.config.blocksFolder, destFileName);
             }
             destFileName = path.posix.join(this.config.destPath, destFileName);
-
-            // Добавляем комментарий к содержимому файла
-            if ( this.config.fileTag ) {
-                var fileTagCtx = {
-                    // ctx : ctx,
-                    ctx : blockData,
-                    config : this.config,
-                    options : options,
-                };
-                var fileTag = this._parseTemplate(this.config.fileTag, fileTagCtx);
-                if ( fileTag ) {
-                    if ( this.config.fileTagWrap ) {
-                        fileTagCtx.fileTag = fileTag;
-                        fileTag = this._parseTemplate(this.config.fileTagWrap, fileTagCtx);
-                    }
-                    content = fileTag + content;
-                }
-            }
 
             // if ( ctx.save ) {
             this.info( 'Сохраняем блок', this._strQuote(id), '->', this._strQuote(destFileName) );
@@ -1162,6 +1150,46 @@ var TemplatesParser = /** @lends TemplatesParser */ {
         }
 
         this._unlevel();
+
+    },/*}}}*/
+
+    /** _prepareContentToWrite ** {{{ */
+    _prepareContentToWrite : function (content, ctx, options) {
+
+        if ( this.config.beautifyHtml ) {
+            content = styleHtml(content, this.config.beautifyOptions);
+        }
+
+        // Удаляем комментарии...
+        if ( this.config.removeComments ) {
+            content = this._removeComments(content);
+        }
+
+        // Восстанавливаем значения атрибутов data-bem, испорченных cheerio
+        content = this._repairDataBem(content);
+
+        // Добавляем комментарий к содержимому файла
+        if ( this.config.fileTag ) {
+            var fileTagCtx = {
+                ctx : ctx,
+                // ctx : blockData,
+                config : this.config,
+                options : options,
+            };
+            var fileTag = this._parseTemplate(this.config.fileTag, fileTagCtx);
+            if ( fileTag ) {
+                if ( this.config.fileTagWrap ) {
+                    fileTagCtx.fileTag = fileTag;
+                    fileTag = this._parseTemplate(this.config.fileTagWrap, fileTagCtx);
+                }
+                content = fileTag + content;
+            }
+        }
+
+        // Теги <script>
+        content = content.replace(/(<script[^<>]*\S)\s*\/>/g, '$1></script>');
+
+        return content;
 
     },/*}}}*/
 
