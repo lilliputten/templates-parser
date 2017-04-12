@@ -7,7 +7,7 @@
 srcPath: 'maket/pages/'
 
 # Конечный путь для сохранения изменённых страниц. Если не задано, используется `srcPath`
-destPagesPath: 'maket/parsed_pages/'
+destPagesPath: 'maket/parsed/pages/'
 
 # Конечный путь, -- туда складываем обработанные шаблоны и блоки
 destPath: 'maket/parsed/'
@@ -16,7 +16,7 @@ destPath: 'maket/parsed/'
 srcExt: '.html'
 # Расширения для сохраняемых файлов
 # destExt: '.template'
-destExt: '.template.html'
+destExt: '.template'
 
 # Сохранять все извлечённые блоки
 saveAllBlocks: true
@@ -27,8 +27,17 @@ saveAllBlocks: true
 # Преобразовывать html (js-beautify|html)
 beautifyHtml: true
 
+# Удалять пустые строки
+removeEmptyLines: true
+
 # Удалять комментарии (`<!--...-->` и `{#...#}`)
 removeComments: true
+
+# Строка комментария, сохраняемая в файл блока
+fileTag: '<%= ctx.description %>'
+
+# Код для вставки комментария в файл блока
+fileTagWrap: "{# <%= fileTag %> #}"
 
 # }}}
 
@@ -64,7 +73,7 @@ beautifyOptions: # {{{ Параметры преобразования html (js-
     # wrap_attributes_indent_size: 4
 # }}}
 
-defaultMakeBlocksRules: &defaultMakeBlocksRules # {{{ Правила обработки блоков по умолчанию
+defaultMakeBlocksRules: &defaultMakeBlocksRules # {{{ Правила обработки блоков при создании по умолчанию
     # -
     #     id: test
     #     manipulate:
@@ -78,112 +87,184 @@ defaultBlockRules: &defaultBlockRules # {{{ Правила обработки б
 # }}}
 
 parseBlocks: # {{{ Блоки (если не указано `saveAllBlocks`, то надо указывать индивидуально)
-    blocks/html/scripts:
+    blocks/sections/ServicesShow/item: # {{{
+        makeReplaces:
+            -
+                pattern: (button_menuId_)(\w+)\b
+                options: g
+                result: '$1{{ servicesGroupKey }}'
+            -
+                pattern: (button_id_)(\w+)\b
+                options: g
+                result: '$1{{ servicesItemKey }}'
+            -
+                pattern: '\b(data-bem="[^"]*ServicesShow__item&quot;:{&quot;url&quot;:&quot;)[^"]*?(&quot;)'
+                
+                options: g
+                result: '$1{{ servicesItem.url }}$2'
+            -
+                pattern: '\b(data-bem="[^"]*button&quot;:{&quot;url&quot;:&quot;)[^"]*?(&quot;)'
+                
+                options: g
+                result: '$1{{ servicesItem.orderUrl }}$2'
+        makeRules:
+            -
+                selector: '.ServicesShow__item_title'
+                manipulate:
+                    html:
+                        - "{{ servicesItem.text }}"
+            -
+                selector: '.ServicesShow__item_description'
+                manipulate:
+                    html:
+                        - "{{ servicesItem.description }}"
+            -
+                selector: '.image'
+                manipulate:
+                    attr:
+                        - src
+                        - "{{ servicesItem.imageUrl }}"
+    # }}}
+    blocks/sections/ServicesShow/menu: # {{{
+        makeReplaces:
+            -
+                pattern: (ServicesShow__menu_id_)(\w+)\b
+                options: g
+                result: '$1{{ servicesGroupKey }}'
+        makeRules:
+            -
+                selector: '.ServicesShow__menu_description'
+                manipulate:
+                    html:
+                        - '{{ servicesGroup.description }}'
+            -
+                selector: '.ServicesShow__menu_container'
+                manipulate:
+                    prepend: "
+                        <!-- for -->{% for servicesItemKey, servicesItem in servicesGroup.items %}
+                    "
+                    append: "
+                        <!-- endfor -->{% endfor %}
+                        <!-- end replace -->
+                    "
+    # }}}
+    blocks/sections/ServicesShow/section: # {{{
+        makeRules:
+            -
+                selector: '.ServicesShow__container'
+                manipulate:
+                    prepend: "
+                        <!-- for -->{% for servicesGroupKey, servicesGroup in servicesList %}
+                    "
+                    append: "
+                        <!-- endfor -->{% endfor %}
+                        <!-- end replace -->
+                    "
+    # }}}
+    blocks/sections/ServicesMenu/item: # {{{
+        save: true
+        makeReplaces:
+            -
+                id: replace id class
+                pattern: (ServicesMenu__item_id_)(\w+)\b
+                options: g
+                result: '$1{{ servicesGroupKey }}'
+        makeRules:
+            -
+                id: url attr
+                selector: a
+                manipulate:
+                    attr:
+                        - href
+                        - "{{ servicesGroup.url }}"
+                    html:
+                        - "{{ servicesGroup.text }}"
+    # }}}
+    blocks/html/scripts: # {{{
         makeRules:
             - *defaultMakeBlocksRules
             -
                 id: custom/scripts
                 manipulate:
                     append: "parse:<%=placeBlockTag%>"
-    header:
-        # file: 'blocks/header'
-        makeRules:
-            - *defaultMakeBlocksRules
-            # -
-            #     id: navbar_org__block_tagline
-            #     selector: '.navbar_org__block_tagline'
-            #     block: true
-            # -
-            #     id: test
-            #     manipulate:
-            #         prepend: 'parse: <!-- block: <%= blockId %> -->'
-    jumbotron_content:
-        makeRules:
-            - *defaultMakeBlocksRules
-            -
-                id: removeExtraIndicators
-                # selector: '.carousel-indicators > li:not(:first-child)'
-                selector: '.carousel-indicators > li:not(.active)'
-                manipulate:
-                    replaceWith: ''
-            -
-                id: indicatorTemplate
-                selector: '.carousel-indicators > li'
-                manipulate:
-                    # attr:
-                    #     - title
-                    #     - 'title'
-                    # -
-                    #     cmd: attr
-                    #     params:
-                    #         - class
-                    #         - 'active'
-                    # -
-                    #     cmd: replaceWith
-                    #     params: 'parse:<%= node.toString().replace(/\\b(active)\\b/, '{% if k==0 %}$1{% endif %}') %>'
-                    -
-                        name: data-slide-to attr
-                        cmd: attr
-                        params:
-                            - data-slide-to
-                            - '{{ k }}'
-                    -
-                        name: active class
-                        cmd: attr
-                        params:
-                            - class
-                            - "parse:<%= node.attr('class').replace(/(\\s*\\bactive\\b)/, '{% if k==0 %}$1{% endif %}') %>"
-            -
-                name: removeExtraItems
-                # selector: '.carousel-inner > .item:not(:first-child)'
-                selector: '.carousel-inner > .item:not(.active)'
-                manipulate:
-                    replaceWith: ''
-            -
-                name: itemTemplate
-                selector: '.carousel-inner > .item'
-                manipulate:
-                    -
-                        name: loop begin
-                        cmd: prepend
-                        params: 'parse:<%=IDTAG%>{% for k,item in items %}'
-                    -
-                        name: loop end
-                        cmd: append
-                        params: 'parse:{% endfor %}<%=IDTAG%>'
-                    -
-                        name: active class
-                        cmd: attr
-                        params:
-                            - class
-                            - "parse:<%= node.attr('class').replace(/(\\s*\\bactive\\b)/, '{% if k==0 %}$1{% endif %}') %>"
-                    -
-                        name: image url
-                        cmd: attr
-                        params:
-                            - style
-                            - "parse:<%= node.attr('style').replace(/\\burl\\((['\"])(.*)\\1\\)/, 'url($1{{ item.file }}$1)') %>"
-            -
-                id: itemContent
-                selector: '.carousel-inner .carousel-caption'
-                manipulate:
-                    -
-                        name: item content
-                        cmd: html
-                        params:
-                            - "parse:<!-- <%=ID%> begin -->{{ item.text|raw }}<!-- <%=ID%> end -->"
-    # main_content:
-    #     file: 'blocks/main_content'
-    # main_content_section_id_advantages:
-    #     file: 'blocks/main_content_section_id_advantages'
+    # }}}
+    custom/styles: # {{{
+        save: true
+    # }}}
+    custom/scripts: # {{{
+        save: true
+    # }}}
 # }}}
 
 # Общие правила шаблонов/блоков можно указывать для исходных страниц
 
-defaultPageRules: &defaultPageRules # {{{ Правила обработки страниц по умолчанию
-    # Теги в шапке
+defaultPageReplaces: &defaultPageReplaces # {{{ Замены для страниц по умолчанию
+    # -
+    #     id: makeMinifiedUrls
+    #     pattern: '((?:src=|href=)\"(?!.*\.min\.\w+\"$).+)(\.(?:js|css)\")'
+    #     options: gi
+    #     result: '$1.min$2'
     -
-        id: title
+        id: makeAbsoluteUrls
+        pattern: ((?:url\s*[:=]\s*|url\(|src=|href=)["'])(?:(?:\.\./)+)([^"']*)(["'])
+        options: gi
+        result: '$1/$2$3'
+    -
+        id: removeInjectMode
+        pattern: (class="page[^"]*\b)(\s+page_mode_inject)
+        options: g
+        result: '$1'
+    -
+        id: removeUniqueId
+        pattern: \s*(aria-owns|aria-labelledby|id)="uniq[^"]*"
+        options: g
+        result: ''
+    -
+        id: blocks/content/title
+        block: true
+        pattern: '(IT услуги — ТехКомпьютер)'
+        result: "{{ site.title }}"
+        # result: "{{ include('blocks/content/title.template') }}"
+    -
+        id: blocks/content/phone
+        block: true
+        pattern: '(\(499\) 515-55-95)'
+        result: "{{ site.phone }}"
+        # result: "{{ site.phone|default('$1') }}"
+        # result: "{{ include('blocks/content/phone.template') }}"
+    -
+        id: blocks/content/email
+        block: true
+        pattern: '(info@tehcomputer\.ru)'
+        result: "{{ site.email }}"
+        # result: "{{ site.email|default('$1') }}"
+        # result: "{{ include('blocks/content/email.template') }}"
+    -
+        id: blocks/content/url
+        block: true
+        pattern: '((?:www\.)?tehcomputer\.ru)'
+        result: "{{ site.url }}"
+        # result: "{{ include('blocks/content/url.template') }}"
+# }}}
+
+defaultPageRules: &defaultPageRules # {{{ Правила обработки страниц по умолчанию
+    # {{{ Общий контент
+    -
+        id: blocks/content/copyright
+        description: 'Текст копирайта (footer)'
+        selector: '.footer__main_item_copy'
+        blocks:
+            blocks/content/copyright:
+                extract:
+                    cmd: html
+            # cmd: html
+        manipulate:
+            html: "{{ site.copyright }}"
+            # html: "{{ include('blocks/content/copyright.template') }}"
+    # }}}
+    # {{{ Теги в шапке
+    -
+        id: content/title
         selector: 'head > title'
         manipulate:
             html: '{{ page.title }}'
@@ -201,15 +282,198 @@ defaultPageRules: &defaultPageRules # {{{ Правила обработки ст
             attr:
                 - content
                 - "{{ page.description }}"
-    # Секции структуры
+    # }}}
+    # {{{ Навигация
+    # {{{ Элементы меню шапки/подвала...
+    -
+        id: blocks/layout/navbar-header
+        description: 'Элемент шапки (главного меню) с логотипом и кнопкой "гамбургер" (навигационное меню в шапке/подвале)'
+        selector: '.navbar-header'
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    -
+        id: blocks/layout/hmenu_main/phone
+        description: 'Телефон в главном меню (навигационное меню в шапке/подвале)'
+        selector: '.hmenu_main_phone'
+        # block: true
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    -
+        id: blocks/layout/hmenu_main/icons_small
+        description: 'Социконки в подвале'
+        selector: '.hmenu_main_icons.hmenu_small_icons'
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    -
+        id: blocks/layout/hmenu_main/icons
+        description: 'Навигационные иконки в главном меню (навигационное меню в шапке/подвале)'
+        selector: '.hmenu_main_icons'
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ Меню услуг основного меню...
+    -
+        id: blocks/layout/hmenu_main/menu_services_item
+        description: 'Пункт меню услуг основного меню сайта'
+        selector: '.hmenu_main_menu .hmenu__submenu .hmenu__item .link'
+        onlyFirst: true
+        # block: true
+        manipulate:
+            attr:
+                - href
+                - "{{ servicesGroup.url }}"
+            html:
+                - "{{ servicesGroup.text }}</empty>"
+    -
+        id: blocks/layout/hmenu_main/menu_services_item
+        description: 'Пункт меню услуг основного меню сайта'
+        selector: '.hmenu_main_menu .hmenu__submenu .hmenu__item'
+        onlyFirst: true
+        block: true
+    -
+        id: blocks/layout/hmenu_main/menu_services
+        description: 'Меню услуг основного меню сайта'
+        selector: '.hmenu_main_menu .hmenu__submenu .hmenu__item'
+        onlyFirst: true
+        manipulate:
+            replaceWith: "
+                <!-- for -->{% for servicesGroupKey, servicesGroup in servicesList %}
+                    <EMPTY>
+                        <!-- include -->{{ include('blocks/layout/hmenu_main/menu_services_item.template')|raw }}
+                    </EMPTY>
+                <!-- endfor -->{% endfor %}
+                <!-- end replace -->
+            "
+    -
+        id: blocks/layout/hmenu_main/menu_services_submenu
+        description: 'Подменю услуг основного меню сайта'
+        selector: '.hmenu_main_menu .hmenu__submenu'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ Выделяем основное меню
+    -
+        id: blocks/layout/hmenu_main/menu
+        description: 'Основное меню сайта (навигационное меню в шапке/подвале)'
+        selector: '.hmenu_main_menu'
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ Меню в подвале
+    -
+        id: blocks/layout/footer__block_title
+        description: 'Заголовок служебного меню в подвале'
+        selector: '.footer__block_title'
+        # block: true
+        manipulate:
+            attr:
+                - href
+                - "{{ site.aboutUrl }}"
+            html:
+                - "<empty>{{ site.aboutTitle }}</empty>"
+    -
+        id: blocks/layout/footer__block_main
+        description: 'Служебное меню в подвале'
+        selector: '.footer__block_main'
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    -
+        id: blocks/layout/bmenu/submenu_item
+        description: 'Элемент подменю услуг в подвале'
+        selector: '.bmenu__menu_container .bmenu__item .link'
+        onlyFirst: true
+        manipulate:
+            attr:
+                - href
+                - "{{ servicesItem.url }}"
+            html:
+                - "{{ servicesItem.text }}"
+    -
+        id: blocks/layout/bmenu/item
+        description: 'Элемент подменю услуг в подвале'
+        selector: '.bmenu__menu_container .bmenu__item'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: "
+                <!-- for -->{% for servicesItemKey, servicesItem in servicesGroup.items %}
+                    <EMPTY>
+                        <!-- include -->{{ include('blocks/layout/bmenu/item.template')|raw }}
+                    </EMPTY>
+                <!-- endfor -->{% endfor %}
+                <!-- end replace -->
+            "
+    -
+        id: blocks/layout/bmenu/submenu
+        description: 'Подменю услуг в подвале'
+        selector: '.bmenu__menu_container .bmenu__submenu'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    -
+        id: blocks/layout/bmenu/title
+        description: 'Свойства заголовка подменю услуг в подвале'
+        selector: '.bmenu__menu_container .bmenu__menu_title .link'
+        onlyFirst: true
+        manipulate:
+            attr:
+                - href
+                - "{{ servicesGroup.url }}"
+            html:
+                - "{{ servicesGroup.text }}"
+    -
+        id: blocks/layout/bmenu/container
+        description: 'Меню услуг в подвале'
+        selector: '.bmenu__menu_container'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: "
+                <!-- for -->{% for servicesGroupKey, servicesGroup in servicesList %}
+                    <EMPTY>
+                        <!-- include -->{{ include('blocks/layout/bmenu/container.template')|raw }}
+                    </EMPTY>
+                <!-- endfor -->{% endfor %}
+                <!-- end replace -->
+            "
+    -
+        id: blocks/layout/footer__container
+        description: 'Основной контект меню в подвале'
+        selector: '.footer__container'
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ Содержимое навигационного меню
+    -
+        id: blocks/layout/navbar_menu__container
+        description: 'Навигационное меню сайта (в шапке/подвале)'
+        selector: '.navbar_menu__container'
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # }}}
+    # {{{ Структура страницы
     -
         id: blocks/layout/header
+        description: 'Шапка сайта (с навигационным меню)'
         selector: '.layout > .header'
         block: true
         manipulate:
-            replaceWith: "parse:<!-- block:<%=blockId%> {{{ -->{{ include('<%=blockId%>')|raw }}<!-- block:<%=blockId%> }}} -->"
+            replaceWith: "parse:<!-- block:<%=blockId%> -->{{ include('<%=blockId%>.template')|raw }}<!-- block:<%=blockId%> -->"
     -
         id: blocks/layout/footer
+        description: 'Подвал сайта (с навигационным меню, служебным меню, полным меню услуг)'
         selector: '.layout > .footer'
         block: true
         manipulate:
@@ -222,140 +486,346 @@ defaultPageRules: &defaultPageRules # {{{ Правила обработки ст
     -
         id: blocks/html/scripts
         selector: 'body > script'
-        block: true
+        block: '--collect--'
         manipulate:
             replaceWith: '<!-- replaced script -->'
     -
         id: blocks/html/scripts
+        description: 'Скрипты в конце страницы'
         selector: 'body'
         manipulate:
-            # append: "parse:<!-- {{{ scripts -->{{ include('blocks/html/scripts')|raw }}<!-- scripts }}} -->"
             append: "parse:<%=placeBlockTag%>"
-    # head
     -
         id: blocks/html/head
+        description: 'Заголовок html страницы'
         selector: 'head'
         block: true
         manipulate:
             replaceWith: 'parse:<%=placeBlockTag%>'
-    # Удаляем демо-секции
+    # }}}
+    # {{{ Удаляем демо-секции
     -
         id:
         selector: '.section_id_sample'
         manipulate:
             replaceWith: '<!-- removed sample -->'
-    # Секции-блоки
+    # }}}
+    # {{{ Секции-блоки
+    # {{{ MainIntro
     -
-        id: blocks/sections/MainIntro
+        id: blocks/sections/MainIntro/title
+        selector: '.section_id_MainIntro .MainIntro__title'
+        # block: true
+        manipulate:
+            html: '{{ MainIntro.title }}'
+    -
+        id: blocks/sections/MainIntro/text
+        selector: '.section_id_MainIntro .MainIntro__text'
+        # block: true
+        manipulate:
+            html: '{{ MainIntro.text }}'
+    -
+        id: blocks/sections/MainIntro/action_item_link
+        selector: '.section_id_MainIntro .MainIntro__actions a.button'
+        onlyFirst: true
+        # block: true
+        manipulate:
+            attr:
+                - href
+                - "{{ action.url }}"
+    -
+        id: blocks/sections/MainIntro/action_item_text
+        selector: '.section_id_MainIntro .MainIntro__actions a.button .button__text'
+        onlyFirst: true
+        # block: true
+        manipulate:
+            html:
+                - "{{ action.text }}"
+    # -
+    #     id: blocks/sections/MainIntro/action_item
+    #     description: 'Элемент списка действий/ссылок'
+    #     selector: '.section_id_MainIntro .MainIntro__actions a.button'
+    #     onlyFirst: true
+    #     block: true
+    #     manipulate:
+    #         replaceWith: 'parse:<%=placeBlockTag%>'
+    -
+        id: blocks/sections/MainIntro/action_item
+        description: 'Элемент списка действий/ссылок'
+        selector: '.section_id_MainIntro .MainIntro__actions a.button'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: "
+                <!-- for -->{% for actionKey, action in MainIntro.actions %}
+                    <EMPTY>
+                        <!-- include -->{{ include('blocks/sections/MainIntro/action_item.template')|raw }}
+                    </EMPTY>
+                <!-- endfor -->{% endfor %}
+                <!-- end replace -->
+            "
+    -
+        id: blocks/sections/MainIntro/section
+        description: 'MainIntro: Банер с заголовком/описанием страницы'
         selector: '.section_id_MainIntro'
         block: true
         manipulate:
             replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ MainJumbo
     -
-        id: blocks/sections/MainJumbo
+        id: blocks/sections/MainJumbo/Order_field_services_item
+        description: 'Пункт группы списка услуг формы'
+        selector: '.MainJumbo__Order .PageForm__field_id_services .menu-item'
+        onlyFirst: true
+        block: true
+        manipulate:
+            html: '{{ servicesItem.text }}'
+            attr:
+                - 'data-bem'
+                - '{&quot;menu-item&quot;:{&quot;val&quot;:&quot;{{ servicesItemKey }}&quot;}}'
+    -
+        id: blocks/sections/MainJumbo/Order_field_services_item
+        description: 'Пункт группы списка услуг формы'
+        selector: '.MainJumbo__Order .PageForm__field_id_services .menu-item'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: "
+                <!-- for -->{% for servicesItemKey, servicesItem in servicesGroup.items %}
+                    <EMPTY>
+                        <!-- include -->{{ include('blocks/sections/MainJumbo/Order_field_services_item.template')|raw }}
+                    </EMPTY>
+                <!-- endfor -->{% endfor %}
+                <!-- end replace -->
+            "
+    -
+        id: blocks/sections/MainJumbo/Order_field_services_group
+        description: 'Заголовок группы списка услуг формы'
+        selector: '.MainJumbo__Order .PageForm__field_id_services .menu__group .menu__group-title'
+        onlyFirst: true
+        block: true
+        manipulate:
+            html: '{{ servicesGroup.text }}'
+    -
+        id: blocks/sections/MainJumbo/Order_field_services_group
+        description: 'Группа списка услуг формы'
+        selector: '.MainJumbo__Order .PageForm__field_id_services .menu__group'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: "
+                <!-- for -->{% for servicesGroupKey, servicesGroup in servicesList %}
+                    <EMPTY>
+                        <!-- include -->{{ include('blocks/sections/MainJumbo/Order_field_services_group.template')|raw }}
+                    </EMPTY>
+                <!-- endfor -->{% endfor %}
+                <!-- end replace -->
+            "
+    -
+        id: blocks/sections/MainJumbo/Order_field_services
+        description: 'Список услуг формы'
+        selector: '.MainJumbo__Order .PageForm__field_id_services'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    -
+        id: blocks/sections/MainJumbo/Order_field_name
+        description: 'После "Имя"'
+        selector: '.MainJumbo__Order .PageForm__field_id_name'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    -
+        id: blocks/sections/MainJumbo/Order_field_phone
+        description: 'Поле "Телефон"'
+        selector: '.MainJumbo__Order .PageForm__field_id_phone'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    -
+        id: blocks/sections/MainJumbo/Order_field_message
+        description: 'Поле "Сообщение"'
+        selector: '.MainJumbo__Order .PageForm__field_id_message'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    -
+        id: blocks/sections/MainJumbo/Order_formTitle
+        description: 'Заголовок формы'
+        selector: '.MainJumbo__Order .PageForm__title'
+        onlyFirst: true
+        manipulate:
+            html:
+                - "{{ MainJumbo.formTitle }}"
+    -
+        id: blocks/sections/MainJumbo/Order_formUrl
+        description: 'Адрес отправки формы'
+        selector: '.MainJumbo__Order .PageForm__form'
+        onlyFirst: true
+        manipulate:
+            attr:
+                - action
+                - "{{ MainJumbo.formUrl }}"
+    -
+        id: blocks/sections/MainJumbo/Order
+        description: 'Форма заявки'
+        selector: '.MainJumbo__Order'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    -
+        id: blocks/sections/MainJumbo/Offers
+        description: 'Галерея акций/предложений'
+        selector: '.MainJumbo__Offers'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: 'parse:<%=placeBlockTag%>'
+    -
+        id: blocks/sections/MainJumbo/section
+        description: 'MainJumbo: Банер с акциями и формой заказа'
         selector: '.section_id_MainJumbo'
+        onlyFirst: true
         block: true
         manipulate:
             replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ ServicesMenu
     -
-        id: blocks/sections/servicesMenu
-        selector: '.section_id_servicesMenu'
+        id: blocks/sections/ServicesMenu/container
+        selector: '.section_id_ServicesMenu .ServicesMenu__container'
+        onlyFirst: true
+        # block: true
+        manipulate:
+            # replaceWith: 'parse:<%=placeBlockTag%>'
+            prepend: "
+                <!-- for -->{% for servicesGroupKey, servicesGroup in servicesList %}
+            "
+            append: "
+                <!-- endfor -->{% endfor %}
+                <!-- end replace -->
+            "
+    -
+        id: blocks/sections/ServicesMenu/item
+        selector: '.section_id_ServicesMenu .ServicesMenu__item'
+        description: 'Пункт меню рубрикатора услуг'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: 'parse:<EMPTY><%=placeBlockTag%></EMPTY>'
+    -
+        id: blocks/sections/ServicesMenu/section
+        selector: '.section_id_ServicesMenu'
+        description: 'Меню рубрикатора услуг'
+        onlyFirst: true
         block: true
         manipulate:
             replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ ServicesShow
     -
-        id: blocks/sections/servicesShow
-        selector: '.section_id_servicesShow'
+        id: blocks/sections/ServicesShow/item
+        selector: '.section_id_ServicesShow .ServicesShow__item'
+        description: 'Пункт группы рубрикатора услуг'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: 'parse:<EMPTY><%=placeBlockTag%></EMPTY>'
+    -
+        id: blocks/sections/ServicesShow/menu
+        selector: '.section_id_ServicesShow .ServicesShow__menu'
+        description: 'Меню группы рубрикатора услуг'
+        onlyFirst: true
+        block: true
+        manipulate:
+            replaceWith: 'parse:<EMPTY><%=placeBlockTag%></EMPTY>'
+    -
+        id: blocks/sections/ServicesShow/section
+        selector: '.section_id_ServicesShow'
+        description: 'Группы рубрикатора услуг'
+        onlyFirst: true
         block: true
         manipulate:
             replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ advantages
     -
-        id: blocks/sections/advantages
+        id: blocks/sections/advantages.unprocessed
         selector: '.section_id_advantages'
+        onlyFirst: true
         block: true
         manipulate:
             replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ feedback
     -
-        id: blocks/sections/feedback
+        id: blocks/sections/feedback.unprocessed
         selector: '.section_id_feedback'
+        onlyFirst: true
         block: true
         manipulate:
             replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ nicetableTariffs
     -
-        id: blocks/sections/nicetableTariffs
+        id: blocks/sections/nicetableTariffs.unprocessed
         selector: '.section_id_nicetableTariffs'
+        onlyFirst: true
         block: true
         manipulate:
             replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ orderConsult
     -
-        id: blocks/sections/orderConsult
+        id: blocks/sections/orderConsult.unprocessed
         selector: '.section_id_orderConsult'
+        onlyFirst: true
         block: true
         manipulate:
             replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ serviceInfo
     -
-        id: blocks/sections/serviceInfo
+        id: blocks/sections/serviceInfo.unprocessed
         selector: '.section_id_serviceInfo'
+        onlyFirst: true
         block: true
         manipulate:
             replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ Calculator
     -
-        id: blocks/sections/Calculator
+        id: blocks/sections/Calculator.unprocessed
         selector: '.section_id_Calculator'
+        onlyFirst: true
         block: true
         manipulate:
             replaceWith: 'parse:<%=placeBlockTag%>'
+    # }}}
+    # {{{ nicetablePrice
     -
-        id: blocks/sections/nicetablePrice
+        id: blocks/sections/nicetablePrice.unprocessed
         selector: '.section_id_nicetablePrice'
+        onlyFirst: true
         block: true
         manipulate:
             replaceWith: 'parse:<%=placeBlockTag%>'
-
-# }}}
-
-defaultPageReplaces: &defaultPageReplaces # {{{ Замены для страниц по умолчанию
-    -
-        id: relativeUrls
-        pattern: ((?:url\s*[:=]\s*|url\(|src=|href=)["'])(?:(?:\.\./)+)([^"']*)(["'])
-        options: gi
-        result: '$1/$2$3'
+    # }}}
+    # }}}
 # }}}
 
 parsePages: # {{{ Обработка страниц
-    components: # {{{
+    elements: # {{{
         save: true
+        description: 'Обработанная структура исходной страницы'
         rules:
             - *defaultPageRules
-            # -
-            #     id: layout_header
-            #     selector: '.layout > .header'
-            #     manipulate:
-            #         replaceWith: "{# replaced header #}{{ include('layout_header')|raw }}"
-            # -
-            #     id: page_keywords
-            #     selector: 'meta[name="keywords"]'
-            #     manipulate:
-            #         attr:
-            #             - content
-            #             - "{# replaced page_keywords #}{{ p.page_keywords }}"
-            # -
-            #     id: page_description
-            #     selector: 'meta[name="description"]'
-            #     manipulate:
-            #         attr:
-            #             - content
-            #             - "{# replaced page_description #}{{ p.page_description }}"
-            # -
-            #     id: layout_footer
-            #     selector: '.layout > .footer' #footer.footer'
-            #     manipulate:
-            #         html: "{# replaced footer #}{{ include('layout_footer')|raw }}"
-            # -
-            #     id: scripts_plus
-            #     selector: 'body'
-            #     manipulate:
-            #         append: "{# appended scripts_plus #}{{ include('server_blocks/scripts_plus.twig')|raw }}"
     # }}}
     # main: # {{{
     #     save: false
@@ -392,7 +862,8 @@ defaultTemplateRules: &defaultTemplateRules # {{{ Правила обработ�
 
 parseTemplates: # {{{ Создание шаблонов из загруженных страниц
     main: # {{{
-        pageId: components
+        pageId: elements
+        description: 'Шаблон главной страницы'
         replaces:
             # Удаляем секции
             -
@@ -404,12 +875,13 @@ parseTemplates: # {{{ Создание шаблонов из загруженн�
             - *defaultTemplateRules
     # }}}
     default: # {{{
-        pageId: components
+        pageId: elements
+        description: 'Шаблон регулярной страницы'
         replaces:
             # Удаляем секции
             -
                 id: removeSections
-                pattern: '{{ include\(\S*\b(MainJumbo|servicesMenu|servicesShow|advantages|feedback|nicetableTariffs|orderConsult)\b\S* }}'
+                pattern: '{{ include\(\S*\b(MainJumbo|ServicesMenu|ServicesShow|advantages|feedback|nicetableTariffs|orderConsult)\b\S* }}'
                 options: gmi
                 result: '{# removed $1 #}'
         rules:
@@ -417,7 +889,7 @@ parseTemplates: # {{{ Создание шаблонов из загруженн�
             # # Удаляем секции
             # -
             #     id: removeSections
-            #     selector: '.section_id_MainJumbo, .section_id_servicesMenu, .section_id_servicesShow'
+            #     selector: '.section_id_MainJumbo, .section_id_ServicesMenu, .section_id_ServicesShow'
             #     manipulate:
             #         replaceWith: ''
             # Добавляем секции
@@ -425,7 +897,7 @@ parseTemplates: # {{{ Создание шаблонов из загруженн�
                 id: appendSections
                 selector: '.page_content'
                 manipulate:
-                    append: "<!-- append orderConsult {{{ -->{{ include('blocks/orderConsult')|raw }}<!-- append orderConsult }}} -->"
+                    append: "<!-- append orderConsult {{{ -->{{ include('blocks/sections/orderConsult.unprocessed.template')|raw }}<!-- append orderConsult }}} -->"
     # }}}
     # main: # {{{
     #     pageId: 'main'
@@ -443,70 +915,70 @@ parseTemplates: # {{{ Создание шаблонов из загруженн�
     #             block: true
     #             manipulate:
     #                 replaceWith: "<!-- replaced main_page_content_section_id_advantages -->
-    #                     {{ include('main_page_content_section_id_advantages.twig')|raw }}"
+    #                     {{ include('main_page_content_section_id_advantages.twig.template')|raw }}"
     #         -
     #             id: main_page_content_section_id_stages
     #             selector: '.page_content .section_id_stages'
     #             block: true
     #             manipulate:
     #                 replaceWith: "<!-- replaced main_page_content_section_id_stages -->
-    #                     {{ include('main_page_content_section_id_stages.twig')|raw }}"
+    #                     {{ include('main_page_content_section_id_stages.twig.template')|raw }}"
     #         -
     #             id: main_page_content_section_id_clients
     #             selector: '.page_content .section_id_clients'
     #             block: true
     #             manipulate:
     #                 replaceWith: "<!-- replaced main_page_content_section_id_clients -->
-    #                     {{ include('main_page_content_section_id_clients.twig')|raw }}"
+    #                     {{ include('main_page_content_section_id_clients.twig.template')|raw }}"
     #         -
     #             id: main_page_content_section_id_feedback
     #             selector: '.page_content .section_id_feedback'
     #             block: true
     #             manipulate:
     #                 replaceWith: "<!-- replaced main_page_content_section_id_feedback -->
-    #                     {{ include('main_page_content_section_id_feedback.twig')|raw }}"
+    #                     {{ include('main_page_content_section_id_feedback.twig.template')|raw }}"
     #         -
     #             id: main_page_content_section_id_cases
     #             selector: '.page_content .section_id_cases'
     #             block: true
     #             manipulate:
     #                 replaceWith: "<!-- replaced main_page_content_section_id_cases -->
-    #                     {{ include('main_page_content_section_id_cases.twig')|raw }}"
+    #                     {{ include('main_page_content_section_id_cases.twig.template')|raw }}"
     #         -
     #             id: main_page_content_section_id_newswide
     #             selector: '.page_content .section_id_newswide'
     #             block: true
     #             manipulate:
     #                 replaceWith: "<!-- replaced main_page_content_section_id_newswide -->
-    #                     {{ include('main_page_content_section_id_newswide.twig')|raw }}"
+    #                     {{ include('main_page_content_section_id_newswide.twig.template')|raw }}"
     #         -
     #             id: main_page_content_section_id_orderPromote
     #             selector: '.page_content .section_id_orderPromote'
     #             block: true
     #             manipulate:
     #                 replaceWith: "<!-- replaced main_page_content_section_id_orderPromote -->
-    #                     {{ include('main_page_content_section_id_orderPromote.twig')|raw }}"
+    #                     {{ include('main_page_content_section_id_orderPromote.twig.template')|raw }}"
     #         -
     #             id: main_page_content_section_id_columns_sample1
     #             selector: '.page_content .section_id_columns_sample1'
     #             block: true
     #             manipulate:
     #                 replaceWith: "<!-- replaced main_page_content_section_id_columns_sample1 -->
-    #                     {{ include('main_page_content_section_id_columns_sample1.twig')|raw }}"
+    #                     {{ include('main_page_content_section_id_columns_sample1.twig.template')|raw }}"
     #         -
     #             id: main_page_content_section_id_columns_sample2
     #             selector: '.page_content .section_id_columns_sample2'
     #             block: true
     #             manipulate:
     #                 replaceWith: "<!-- replaced main_page_content_section_id_columns_sample2 -->
-    #                     {{ include('main_page_content_section_id_columns_sample2.twig')|raw }}"
+    #                     {{ include('main_page_content_section_id_columns_sample2.twig.template')|raw }}"
     #         -
     #             id: main_page_content_section_id_sample
     #             selector: '.page_content .section_id_sample'
     #             block: true
     #             manipulate:
     #                 replaceWith: "<!-- replaced main_page_content_section_id_sample -->
-    #                     {{ include('main_page_content_section_id_sample.twig')|raw }}"
+    #                     {{ include('main_page_content_section_id_sample.twig.template')|raw }}"
     #         -
     #             id: page_content
     #             selector: '.page_content'
@@ -530,7 +1002,7 @@ parseTemplates: # {{{ Создание шаблонов из загруженн�
     #             id: breadcrumbs_append
     #             selector: '.breadcrumbs'
     #             manipulate:
-    #                 append: "{# replaced breadcrumbs_append #}{{ include('server_blocks/breadcrumbs_append.twig')|raw }}
+    #                 append: "{# replaced breadcrumbs_append #}{{ include('server_blocks/breadcrumbs_append.twig.template')|raw }}
     #                         {# ORIGINAL: {% if p.module and p.module.name == 'Новости' %}
     #                             {{ site.w(['verhnee-menju', 'menju-v-podvale-sajta'], p.url, true)|raw }}
     #                         {% else %}
