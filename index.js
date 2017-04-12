@@ -485,6 +485,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
                 extract = ( ( typeof block === 'string' ) ? block : block.extract ) || {},
                 cmd = ( ( typeof extract === 'string' ) ? extract : extract.cmd ) || 'toString',
                 params = extract.params || [],
+                replaces = ctx.makeReplaces || this.config.defaultMakeBlockReplaces,
                 rules = ctx.makeRules || this.config.defaultMakeBlocksRules,
                 undef
             ;
@@ -517,6 +518,11 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             // Применяем метод, извлекаем контент
             if ( typeof content !== 'string' ) {
                 content = cheerNode[cmd].apply(content, params) || '' ;
+            }
+
+            // Замены...
+            if ( replaces ) {
+                content = this._applyReplaces(content, replaces, options);
             }
 
             if ( rules ) {
@@ -562,7 +568,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
             var r = replaces;
 
-            this.info( 'Замена', ( r.id || this._strQuote(r.pattern) ) );
+            this.info( 'Замена', r.id, this._strQuote(r.pattern) );
 
             var
                 reg = new RegExp(r.pattern, r.options || 'g'),
@@ -584,7 +590,6 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             }
 
             html = html.replace(reg, result);
-
         }
 
         return html;
@@ -634,7 +639,6 @@ var TemplatesParser = /** @lends TemplatesParser */ {
                     break;
             }
         }
-
 
     },/*}}}*/
 
@@ -725,7 +729,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
     /** _removeComments ** {{{ */
     _removeComments : function (content) {
 
-        content = content.replace(/^\s*((<\/?empty>|<!--[^>]*-->|\{#[^\}]*#\})\s*)+\n/gmi, '');
+        content = content.replace(/^\s*((<!--[^>]*-->|\{#[^\}]*#\})\s*)+\n/gmi, '');
         content = content.replace(/(<\/?empty\/?>|<!--[^>]*-->|\{#[^\}]*#\})/gmi, '');
 
         return content;
@@ -899,35 +903,8 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             // Получаем html
             content = cheerHtml.html();
 
-            // Если задана опция, причёсываем html
-            if ( this.config.beautifyHtml ) {
-                content = styleHtml(content, this.config.beautifyOptions);
-            }
-
-            // Удаляем комментарии...
-            if ( this.config.removeComments ) {
-                content = this._removeComments(content);
-            }
-
-            // Восстанавливаем значения атрибутов data-bem, испорченных cheerio
-            content = this._repairDataBem(content);
-
-            // Добавляем комментарий к содержимому файла
-            if ( this.config.fileTag ) {
-                var fileTagCtx = {
-                    ctx : ctx,
-                    config : this.config,
-                    options : options,
-                };
-                var fileTag = this._parseTemplate(this.config.fileTag, fileTagCtx);
-                if ( fileTag ) {
-                    if ( this.config.fileTagWrap ) {
-                        fileTagCtx.fileTag = fileTag;
-                        fileTag = this._parseTemplate(this.config.fileTagWrap, fileTagCtx);
-                    }
-                    content = fileTag + content;
-                }
-            }
+            // Обрабатываем содержимое...
+            content = this._prepareContentToWrite(content, ctx, options);
 
             this.info( 'Сохраняем шаблон', this._strQuote(id), '->', this._strQuote(destFilePath) );
             this._level();
@@ -1003,34 +980,8 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
             content = pageCtx.content = cheerHtml.html();
 
-            if ( this.config.beautifyHtml ) {
-                content = styleHtml(content, this.config.beautifyOptions);
-            }
-
-            // Удаляем комментарии...
-            if ( this.config.removeComments ) {
-                content = this._removeComments(content);
-            }
-
-            // Восстанавливаем значения атрибутов data-bem, испорченных cheerio
-            content = this._repairDataBem(content);
-
-            // Добавляем комментарий к содержимому файла
-            if ( this.config.fileTag ) {
-                var fileTagCtx = {
-                    ctx : ctx,
-                    config : this.config,
-                    options : options,
-                };
-                var fileTag = this._parseTemplate(this.config.fileTag, fileTagCtx);
-                if ( fileTag ) {
-                    if ( this.config.fileTagWrap ) {
-                        fileTagCtx.fileTag = fileTag;
-                        fileTag = this._parseTemplate(this.config.fileTagWrap, fileTagCtx);
-                    }
-                    content = fileTag + content;
-                }
-            }
+            // Обрабатываем содержимое...
+            content = this._prepareContentToWrite(content, ctx, options);
 
             // Имя конечного файла
             var srcFileName = id + ( this.config.srcExt || '' );
@@ -1165,6 +1116,11 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             content = this._removeComments(content);
         }
 
+        // Удаляем пустые строки, если указано
+        if ( this.config.removeEmptyLines ) {
+            content = content.replace(/^\s*[\r\n]+/gm, '');
+        }
+
         // Восстанавливаем значения атрибутов data-bem, испорченных cheerio
         content = this._repairDataBem(content);
 
@@ -1186,8 +1142,8 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             }
         }
 
-        // Теги <script>
-        content = content.replace(/(<script[^<>]*\S)\s*\/>/g, '$1></script>');
+        // Теги <tag*/> -> <tag*></tag>
+        content = content.replace(/(<(div|span|script|textarea)\b[^<>]*\S)\s*\/>/g, '$1></$2>');
 
         return content;
 
