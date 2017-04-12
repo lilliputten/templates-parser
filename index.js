@@ -270,6 +270,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             // this.info( 'Парсим', cmd, subParam );
             // Если `file`, то загружаем файл
             cmd === 'file' && ( subParam = this.loadFile(subParam) );
+            // cmd === 'eval' && ( subParam = eval(subParam, extend({}, options, { __builtins__ : {} })) ); // jshint ignore:line // TODO?
             // Парсим lodash
             return this._parseTemplate(subParam, options);
         }
@@ -616,7 +617,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
         }
 
         if ( !cheerNode || !cheerNode.length ) {
-            this._infoRaw( '(!) Не найден элемент для правила', this._strQuote(rule.id || rule.selector), options );
+            this._infoRaw( '(!) Не найден элемент для правила', this._strQuote(rule.id || rule.selector) );//, options );
             return false;
         }
 
@@ -1080,6 +1081,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             }
 
             // Обрабатываем содержимое...
+            blockData.description = ctx.description || blockData.description;
             content = this._prepareContentToWrite(content, blockData, options);
 
             // Имя конечного файла
@@ -1143,7 +1145,8 @@ var TemplatesParser = /** @lends TemplatesParser */ {
         }
 
         // Теги <tag*/> -> <tag*></tag>
-        content = content.replace(/(<(div|span|script|textarea)\b[^<>]*\S)\s*\/>/g, '$1></$2>');
+        // TODO 2017.04.12, 22:28 -- Вынести в конфиг?
+        content = content.replace(/(<(div|span|script|textarea|th|td|thead|tbody|tfoot|table)\b[^<>]*\S)\s*\/>/g, '$1></$2>');
 
         return content;
 
