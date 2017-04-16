@@ -13,7 +13,7 @@
 var
 
     /*{{{ Дебаг, инфо... */
-    DBG = function () { console && console.error.apply(console, arguments); },
+    DBG = function () { console && console.info.apply(console, arguments); },
     /*}}}*/
 
     /*{{{ Библиотечные модули... */
@@ -89,6 +89,13 @@ var
 ;
 
 var TemplatesParser = /** @lends TemplatesParser */ {
+
+    // Библиотеки
+
+    cheerio : cheerio,
+    extend : extend,
+    template : template,
+    styleHtml : styleHtml,
 
     // Данные...
 
@@ -330,7 +337,7 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             var blockFile = blockId + ( this.config.destExt || '.template' );
             var opt = extend({}, options, {
                 blockId : blockId, // <%= config.blocksFolder + rule.id %>
-                placeBlockTag : '<!-- block:'+blockId+' {{{ -->{{ include(\''+blockFile+'\')|raw }}<!-- block:'+blockId+' }}} -->',
+                placeBlockTag : '<!--{{{ block:'+blockId+'-->{{ include(\''+blockFile+'\')|raw }}<!--block:'+blockId+' }}} -->',
                 placeBlockInline : '{# block:'+blockId+' #}{{ include(\''+blockFile+'\')|raw }}',
                 node : cheerNode,
                 manipulate : manipulate,
@@ -446,9 +453,14 @@ var TemplatesParser = /** @lends TemplatesParser */ {
 
         var collectMark = this.config.blockCollectMark || '--collect--';
 
+        // Идентификатор блока по умолчанию
+        var blockId = options && ( ( options.rule && options.rule.id ) || options.id );
+
         // Если `true`, то создаём блок с идентификтором правила
-        if ( blocks === true || blocks === collectMark ) {
-            var blockId = options && ( ( options.rule && options.rule.id ) || options.id );
+        if ( blocks === true || typeof blocks === 'string' || blocks === collectMark ) {
+            if ( typeof blocks === 'string' ) {
+                blockId = blocks;
+            }
             if ( blockId ) {
                 var newBlock = { /* extract : 'toString' */ };
                 ( blocks === collectMark ) && ( newBlock.collect = true );
@@ -468,21 +480,32 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             var list = blocks;
             blocks = {};
             for ( var i in list ) {
-                var newId = list[i];
-                blocks[newId] = { /* extract : 'toString' */ };
+                var newId = ( typeof list[i] === 'object' && list[i].id ) ? list[i].id : list[i];
+                blocks[newId] = ( typeof list[i] === 'object' ) ? list[i] : { /* extract : 'toString' */ };
             }
         }
+        else if ( typeof blocks === 'object' && ( ( blocks && blocks.id ) || blockId ) ) {
+            var block = blocks,
+                newId = ( blocks && blocks.id ) || blockId
+            ;
+            blocks = {};
+            blocks[newId] = block;
+        }
+        else {
+            this._infoRaw( '(!) Не задан иентификатор блока:', blocks );
+            return;
+        }
 
-        this.info( 'Блок (', Object.keys(blocks).join(', '), ')' );
+        this.info( 'Создаём блок (', Object.keys(blocks).join(', '), ')' );
 
         this._level();
 
         // Проходим по всем блокам к созданию...
         for ( var id in blocks ) {
 
-            var block = blocks[id] || {},
+            var block = ( typeof blocks[id] === 'object' ) ? blocks[id] : {},
                 ctx = this.config.parseBlocks[id] || {},
-                description = block.description || ( options.rule && ( options.rule.block && options.rule.block.description ) || options.rule.description ),
+                description = block.description || ( options.rule && ( ( options.rule.block && options.rule.block.description ) || options.rule.description ) ),
                 extract = ( ( typeof block === 'string' ) ? block : block.extract ) || {},
                 cmd = ( ( typeof extract === 'string' ) ? extract : extract.cmd ) || 'toString',
                 params = extract.params || [],
@@ -505,6 +528,8 @@ var TemplatesParser = /** @lends TemplatesParser */ {
             // Подготавливаем комплексные параметры
             params = this._prepareParams(params, extend({}, options, {
                 blockId : id,
+                node : cheerNode,
+                parse : this,
             }));
 
             // Убеждаемся, что массив -- для `apply`
@@ -530,6 +555,8 @@ var TemplatesParser = /** @lends TemplatesParser */ {
                 content = this.parseContent(content, rules, extend({}, options, {
                     parseId : 'block:'+id,
                     blockId : id,
+                    node : cheerNode,
+                    parse : this,
                 }));
             }
 
