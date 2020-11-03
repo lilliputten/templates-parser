@@ -16,7 +16,7 @@
 Описание
 --------
 
-Для парсинга исопльзуется модуль [cheerio](https://github.com/cheeriojs/cheerio).
+Для парсинга используется модуль [cheerio](https://github.com/cheeriojs/cheerio).
 
 Использование
 -------------
